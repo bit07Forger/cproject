@@ -46,15 +46,15 @@ void clearScreen() {
 // Function to draw traffic light
 void drawTrafficLight(TrafficLight state) {
     printf("\n");
-    printf("        ┌─────────┐\n");
-    printf("        │         │\n");
+    printf("        |=========|\n");
+    printf("        |         |\n");
     
     if (state == LIGHT_RED)
-        printf("        │  %s● RED %s │\n", BG_RED, RESET);
+        printf("        |  %s● RED %s |\n", BG_RED, RESET);
     else
-        printf("        │  %s●%s     │\n", RED, RESET);
+        printf("        |  %s●%s     |\n", RED, RESET);
     
-    printf("        │         │\n");
+    printf("        |         |\n");
     
     if (state == LIGHT_YELLOW)
         printf("        │ %s● YELLOW%s│\n", BG_YELLOW, RESET);
