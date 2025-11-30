@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <time.h>
 
 #ifdef _WIN32
@@ -11,33 +10,30 @@
     #define SLEEP(ms) usleep((ms) * 1000)
 #endif
 
-#define CLEAR_SCREEN "\033[2J"
-#define CURSOR_HOME "\033[H"
-#define CURSOR_POS(row, col) printf("\033[%d;%dH", (row), (col))
-#define COLOR_RED "\033[31m"
-#define COLOR_YELLOW "\033[33m"
-#define COLOR_GREEN "\033[32m"
-#define COLOR_RESET "\033[0m"
-#define COLOR_BLUE "\033[34m"
-#define COLOR_CYAN "\033[36m"
+#define CLEAR_SCREEN "\033[2J\033[H"
+#define CURSOR_POS(r,c) printf("\033[%d;%dH", (r), (c))
+
+#define COLOR_RED     "\033[31m"
+#define COLOR_YELLOW  "\033[33m"
+#define COLOR_GREEN   "\033[32m"
+#define COLOR_BLUE    "\033[34m"
+#define COLOR_CYAN    "\033[36m"
 #define COLOR_MAGENTA "\033[35m"
+#define COLOR_RESET   "\033[0m"
 
 #define GRID_WIDTH 80
 #define GRID_HEIGHT 24
-#define INTERSECTION_X 40
-#define INTERSECTION_Y 12
+#define IX 40
+#define IY 12
 
 typedef enum { RED, YELLOW, GREEN } LightState;
+typedef enum { NORTH, SOUTH, EAST, WEST } Direction;
 
 typedef struct {
     LightState state;
     int timer;
-    int greenTime;
-    int yellowTime;
-    int redTime;
+    int g, y, r;
 } TrafficLight;
-
-typedef enum { NORTH, SOUTH, EAST, WEST } Direction;
 
 typedef struct {
     int x, y;
@@ -48,84 +44,166 @@ typedef struct {
 
 #define MAX_CARS 20
 Car cars[MAX_CARS];
-TrafficLight nsLight;
-TrafficLight ewLight;
 char grid[GRID_HEIGHT][GRID_WIDTH];
 
-void initGrid();
-void drawGrid();
-void initTrafficLights();
-void updateTrafficLights();
-void drawTrafficLights();
-void initCars();
-void spawnCar();
-void updateCars();
-void drawCar(Car* car, int erase);
-int isPositionOccupied(int x, int y, int carIndex);
-int canMove(Car* car);
-void displayMenu();
-void runSimulation(int duration);
+TrafficLight nsLight, ewLight;
 
-int main() {
-    int choice;
-    int duration;
-    
-    srand(time(NULL));
-    
-    while (1) {
-        displayMenu();
-        scanf("%d", &choice);
-        
-        switch (choice) {
-            case 1:
-                printf("\nEnter simulation duration in seconds (1-300): ");
-                scanf("%d", &duration);
-                if (duration < 1) duration = 1;
-                if (duration > 300) duration = 300;
-                runSimulation(duration);
-                break;
-            case 2:
-                runSimulation(60);
-                break;
-            case 3:
-                printf("\nThank you for using the Traffic Simulation!\n");
-                return 0;
-            default:
-                printf("\nInvalid choice. Please try again.\n");
-                SLEEP(2000);
-                break;
-        }
+void initGrid() {
+    for (int i = 0; i < GRID_HEIGHT; i++)
+        for (int j = 0; j < GRID_WIDTH; j++)
+            grid[i][j] = ' ';
+
+    for (int j = 0; j < GRID_WIDTH; j++)
+        grid[IY - 1][j] = grid[IY][j] = grid[IY + 1][j] = grid[IY + 2][j] = '-';
+
+    for (int i = 0; i < GRID_HEIGHT; i++)
+        grid[i][IX - 1] = grid[i][IX] = grid[i][IX + 1] = grid[i][IX + 2] = '|';
+
+    for (int i = IY - 1; i <= IY + 2; i++)
+        for (int j = IX - 1; j <= IX + 2; j++)
+            grid[i][j] = '+';
+}
+
+void drawGrid() {
+    CURSOR_POS(1,1);
+    for (int i = 0; i < GRID_HEIGHT; i++) {
+        fwrite(grid[i], 1, GRID_WIDTH, stdout);
+        putchar('\n');
     }
-    
+}
+
+void initTrafficLights() {
+    nsLight = (TrafficLight){GREEN, 50, 50, 10, 50};
+    ewLight = (TrafficLight){RED,   50, 50, 10, 50};
+}
+
+void updateLight(TrafficLight *t) {
+    if (--t->timer > 0) return;
+    switch (t->state) {
+        case GREEN:  t->state = YELLOW; t->timer = t->y; break;
+        case YELLOW: t->state = RED;    t->timer = t->r; break;
+        case RED:    t->state = GREEN;  t->timer = t->g; break;
+    }
+}
+
+void drawTrafficLights() {
+    CURSOR_POS(GRID_HEIGHT + 2, 1);
+    printf("N-S Light: ");
+    printf(nsLight.state == RED ? COLOR_RED "RED   " COLOR_RESET :
+           nsLight.state == YELLOW ? COLOR_YELLOW "YELLOW" COLOR_RESET :
+           COLOR_GREEN "GREEN " COLOR_RESET);
+
+    CURSOR_POS(GRID_HEIGHT + 3, 1);
+    printf("E-W Light: ");
+    printf(ewLight.state == RED ? COLOR_RED "RED   " COLOR_RESET :
+           ewLight.state == YELLOW ? COLOR_YELLOW "YELLOW" COLOR_RESET :
+           COLOR_GREEN "GREEN " COLOR_RESET);
+}
+
+void initCars() {
+    for (int i = 0; i < MAX_CARS; i++)
+        cars[i].active = 0;
+}
+
+int isOccupied(int x, int y, int ignore) {
+    for (int i = 0; i < MAX_CARS; i++)
+        if (i != ignore && cars[i].active && cars[i].x == x && cars[i].y == y)
+            return 1;
     return 0;
+}
+
+int canMove(Car* c) {
+    if (c->dir == NORTH || c->dir == SOUTH) {
+        if (nsLight.state == RED)
+            if ((c->dir == NORTH && c->y <= IY + 3 && c->y > IY - 2) ||
+                (c->dir == SOUTH && c->y >= IY - 2 && c->y < IY + 3))
+                return 0;
+    } else {
+        if (ewLight.state == RED)
+            if ((c->dir == EAST && c->x <= IX + 3 && c->x > IX - 2) ||
+                (c->dir == WEST && c->x >= IX - 2 && c->x < IX + 3))
+                return 0;
+    }
+    return 1;
+}
+
+void drawCar(Car* c, int erase) {
+    if (c->y < 0 || c->y >= GRID_HEIGHT || c->x < 0 || c->x >= GRID_WIDTH) return;
+    CURSOR_POS(c->y + 1, c->x + 1);
+    if (erase) putchar(grid[c->y][c->x]);
+    else printf(COLOR_BLUE "%c" COLOR_RESET, c->symbol);
+}
+
+void spawnCar() {
+    int slot = -1;
+    for (int i = 0; i < MAX_CARS; i++)
+        if (!cars[i].active) { slot = i; break; }
+    if (slot == -1) return;
+
+    Car* c = &cars[slot];
+    c->active = 1;
+    c->dir = rand() % 4;
+
+    switch (c->dir) {
+        case NORTH: c->x = IX;     c->y = GRID_HEIGHT - 2; c->symbol = '^'; break;
+        case SOUTH: c->x = IX + 1; c->y = 1;               c->symbol = 'v'; break;
+        case EAST:  c->x = 1;      c->y = IY;              c->symbol = '>'; break;
+        case WEST:  c->x = GRID_WIDTH - 2; c->y = IY + 1;  c->symbol = '<'; break;
+    }
+
+    if (isOccupied(c->x, c->y, slot))
+        c->active = 0;
+}
+
+void updateCars() {
+    for (int i = 0; i < MAX_CARS; i++) {
+        Car* c = &cars[i];
+        if (!c->active) continue;
+
+        int nx = c->x, ny = c->y;
+        if (c->dir == NORTH) ny--;
+        if (c->dir == SOUTH) ny++;
+        if (c->dir == EAST)  nx++;
+        if (c->dir == WEST)  nx--;
+
+        if (nx < 0 || nx >= GRID_WIDTH || ny < 0 || ny >= GRID_HEIGHT) {
+            drawCar(c, 1);
+            c->active = 0;
+            continue;
+        }
+
+        if (!canMove(c) || isOccupied(nx, ny, i)) {
+            drawCar(c, 0);
+            continue;
+        }
+
+        drawCar(c, 1);
+        c->x = nx;
+        c->y = ny;
+        drawCar(c, 0);
+    }
 }
 
 void displayMenu() {
     printf(CLEAR_SCREEN);
-    printf(CURSOR_HOME);
     printf(COLOR_CYAN);
-    printf("||============================================================||n");
+    printf("||============================================================||\n");
     printf("||                                                            ||\n");
     printf("||          TRAFFIC INTERSECTION SIMULATION SYSTEM            ||\n");
     printf("||                                                            ||\n");
     printf("||============================================================||\n");
-    printf(COLOR_RESET);
-    printf("\n");
+    printf(COLOR_RESET "\n");
     printf(COLOR_MAGENTA "  Features:\n" COLOR_RESET);
     printf("    1. Realistic traffic light timing\n");
-    printf("    2.Multi-directional vehicle flow\n");
-    printf("    3.Collision detection\n");
-    printf("    4.Dynamic car spawning\n");
-    printf("\n");
+    printf("    2. Multi-directional vehicle flow\n");
+    printf("    3. Collision detection\n");
+    printf("    4. Dynamic car spawning\n\n");
     printf(COLOR_GREEN "  MAIN MENU\n" COLOR_RESET);
-    printf("  ------------------------------------------------------------------\n");
-    printf("\n");
+    printf("  ------------------------------------------------------------------\n\n");
     printf("    1. Start Custom Simulation\n");
     printf("    2. Start Standard Simulation (60 seconds)\n");
-    printf("    3. Exit Program\n");
-    printf("\n");
-    printf("  --------------------------------------------------------------------\n");
-    printf("\n");
+    printf("    3. Exit Program\n\n");
+    printf("  --------------------------------------------------------------------\n\n");
     printf("  Enter your choice (1-3): ");
     fflush(stdout);
 }
@@ -136,293 +214,51 @@ void runSimulation(int duration) {
     initTrafficLights();
     initCars();
     drawGrid();
-    
-    int frame = 0;
-    int maxFrames = duration * 10;
-    printf("\n\nSimulation running for %d seconds...\n", duration);
-    printf("(Program will return to menu after simulation)\n");
-    fflush(stdout);
-    
-    while (frame < maxFrames) {
-        updateTrafficLights();
+
+    int frames = duration * 10;
+
+    while (frames--) {
+        updateLight(&nsLight);
+        updateLight(&ewLight);
         drawTrafficLights();
-        
-        if (frame % 30 == 0) {
+
+        if (frames % 30 == 0)
             spawnCar();
-        }
-        
+
         updateCars();
-        
         fflush(stdout);
         SLEEP(100);
-        frame++;
     }
-    
+
     printf(CLEAR_SCREEN);
-    printf(CURSOR_HOME);
     printf(COLOR_GREEN "Simulation completed!\n" COLOR_RESET);
     printf("Press Enter to return to menu...");
     getchar();
     getchar();
 }
 
-void initGrid() {
-    int i, j;
-    
-    for (i = 0; i < GRID_HEIGHT; i++) {
-        for (j = 0; j < GRID_WIDTH; j++) {
-            grid[i][j] = ' ';
-        }
-    }
-    
-    for (j = 0; j < GRID_WIDTH; j++) {
-        grid[INTERSECTION_Y - 1][j] = '-';
-        grid[INTERSECTION_Y][j] = '-';
-        grid[INTERSECTION_Y + 1][j] = '-';
-        grid[INTERSECTION_Y + 2][j] = '-';
-    }
-    
-    for (i = 0; i < GRID_HEIGHT; i++) {
-        grid[i][INTERSECTION_X - 1] = '|';
-        grid[i][INTERSECTION_X] = '|';
-        grid[i][INTERSECTION_X + 1] = '|';
-        grid[i][INTERSECTION_X + 2] = '|';
-    }
-    
-    for (i = INTERSECTION_Y - 1; i <= INTERSECTION_Y + 2; i++) {
-        for (j = INTERSECTION_X - 1; j <= INTERSECTION_X + 2; j++) {
-            grid[i][j] = '+';
-        }
-    }
-}
+int main() {
+    srand(time(NULL));
+    int choice, duration;
 
-void drawGrid() {
-    int i, j;
-    printf(CURSOR_HOME);
-    for (i = 0; i < GRID_HEIGHT; i++) {
-        for (j = 0; j < GRID_WIDTH; j++) {
-            putchar(grid[i][j]);
-        }
-        putchar('\n');
-    }
-}
+    while (1) {
+        displayMenu();
+        scanf("%d", &choice);
 
-void initTrafficLights() {
-    nsLight.state = GREEN;
-    nsLight.timer = 50;
-    nsLight.greenTime = 50;
-    nsLight.yellowTime = 10;
-    nsLight.redTime = 50;
-    
-    ewLight.state = RED;
-    ewLight.timer = 50;
-    ewLight.greenTime = 50;
-    ewLight.yellowTime = 10;
-    ewLight.redTime = 50;
-}
-
-void updateTrafficLights() {
-    nsLight.timer--;
-    if (nsLight.timer <= 0) {
-        switch (nsLight.state) {
-            case GREEN:
-                nsLight.state = YELLOW;
-                nsLight.timer = nsLight.yellowTime;
-                break;
-            case YELLOW:
-                nsLight.state = RED;
-                nsLight.timer = nsLight.redTime;
-                break;
-            case RED:
-                nsLight.state = GREEN;
-                nsLight.timer = nsLight.greenTime;
-                break;
+        if (choice == 1) {
+            printf("\nEnter simulation duration in seconds (1-300): ");
+            scanf("%d", &duration);
+            if (duration < 1) duration = 1;
+            if (duration > 300) duration = 300;
+            runSimulation(duration);
         }
-    }
-    
-    ewLight.timer--;
-    if (ewLight.timer <= 0) {
-        switch (ewLight.state) {
-            case GREEN:
-                ewLight.state = YELLOW;
-                ewLight.timer = ewLight.yellowTime;
-                break;
-            case YELLOW:
-                ewLight.state = RED;
-                ewLight.timer = ewLight.redTime;
-                break;
-            case RED:
-                ewLight.state = GREEN;
-                ewLight.timer = ewLight.greenTime;
-                break;
+        else if (choice == 2)
+            runSimulation(60);
+        else if (choice == 3)
+            return 0;
+        else {
+            printf("\nInvalid choice.\n");
+            SLEEP(1500);
         }
-    }
-}
-
-void drawTrafficLights() {
-    CURSOR_POS(GRID_HEIGHT + 2, 1);
-    printf("N-S Light: ");
-    switch (nsLight.state) {
-        case RED:
-            printf(COLOR_RED "RED   " COLOR_RESET);
-            break;
-        case YELLOW:
-            printf(COLOR_YELLOW "YELLOW" COLOR_RESET);
-            break;
-        case GREEN:
-            printf(COLOR_GREEN "GREEN " COLOR_RESET);
-            break;
-    }
-    
-    CURSOR_POS(GRID_HEIGHT + 3, 1);
-    printf("E-W Light: ");
-    switch (ewLight.state) {
-        case RED:
-            printf(COLOR_RED "RED   " COLOR_RESET);
-            break;
-        case YELLOW:
-            printf(COLOR_YELLOW "YELLOW" COLOR_RESET);
-            break;
-        case GREEN:
-            printf(COLOR_GREEN "GREEN " COLOR_RESET);
-            break;
-    }
-}
-
-void initCars() {
-    int i;
-    for (i = 0; i < MAX_CARS; i++) {
-        cars[i].active = 0;
-    }
-}
-
-void spawnCar() {
-    int i;
-    int slot = -1;
-    Direction dir;
-    Car* car;
-    
-    for (i = 0; i < MAX_CARS; i++) {
-        if (!cars[i].active) {
-            slot = i;
-            break;
-        }
-    }
-    if (slot == -1) return;
-    
-    dir = rand() % 4;
-    car = &cars[slot];
-    car->dir = dir;
-    car->active = 1;
-    
-    switch (dir) {
-        case NORTH:
-            car->x = INTERSECTION_X;
-            car->y = GRID_HEIGHT - 2;
-            car->symbol = '^';
-            break;
-        case SOUTH:
-            car->x = INTERSECTION_X + 1;
-            car->y = 1;
-            car->symbol = 'v';
-            break;
-        case EAST:
-            car->x = 1;
-            car->y = INTERSECTION_Y;
-            car->symbol = '>';
-            break;
-        case WEST:
-            car->x = GRID_WIDTH - 2;
-            car->y = INTERSECTION_Y + 1;
-            car->symbol = '<';
-            break;
-    }
-    
-    if (isPositionOccupied(car->x, car->y, slot)) {
-        car->active = 0;
-    }
-}
-
-int isPositionOccupied(int x, int y, int carIndex) {
-    int i;
-    for (i = 0; i < MAX_CARS; i++) {
-        if (i != carIndex && cars[i].active && 
-            cars[i].x == x && cars[i].y == y) {
-            return 1;
-        }
-    }
-    return 0;
-}
-
-int canMove(Car* car) {
-    if (car->dir == NORTH || car->dir == SOUTH) {
-        if (nsLight.state == RED) {
-            if ((car->dir == NORTH && car->y <= INTERSECTION_Y + 3 && car->y > INTERSECTION_Y - 2) ||
-                (car->dir == SOUTH && car->y >= INTERSECTION_Y - 2 && car->y < INTERSECTION_Y + 3)) {
-                return 0;
-            }
-        }
-    } else {
-        if (ewLight.state == RED) {
-            if ((car->dir == EAST && car->x <= INTERSECTION_X + 3 && car->x > INTERSECTION_X - 2) ||
-                (car->dir == WEST && car->x >= INTERSECTION_X - 2 && car->x < INTERSECTION_X + 3)) {
-                return 0;
-            }
-        }
-    }
-    
-    return 1;
-}
-
-void updateCars() {
-    int i;
-    int nextX, nextY;
-    Car* car;
-    
-    for (i = 0; i < MAX_CARS; i++) {
-        if (!cars[i].active) continue;
-        
-        car = &cars[i];
-        
-        nextX = car->x;
-        nextY = car->y;
-        
-        switch (car->dir) {
-            case NORTH: nextY--; break;
-            case SOUTH: nextY++; break;
-            case EAST:  nextX++; break;
-            case WEST:  nextX--; break;
-        }
-        
-        if (nextX < 0 || nextX >= GRID_WIDTH || nextY < 0 || nextY >= GRID_HEIGHT) {
-            drawCar(car, 1);
-            car->active = 0;
-            continue;
-        }
-        
-        if (!canMove(car) || isPositionOccupied(nextX, nextY, i)) {
-            drawCar(car, 0);
-            continue;
-        }
-        
-        drawCar(car, 1);
-        
-        car->x = nextX;
-        car->y = nextY;
-        
-        drawCar(car, 0);
-    }
-}
-
-void drawCar(Car* car, int erase) {
-    if (car->y < 0 || car->y >= GRID_HEIGHT || car->x < 0 || car->x >= GRID_WIDTH) {
-        return;
-    }
-    
-    CURSOR_POS(car->y + 1, car->x + 1);
-    if (erase) {
-        putchar(grid[car->y][car->x]);
-    } else {
-        printf(COLOR_BLUE "%c" COLOR_RESET, car->symbol);
     }
 }
