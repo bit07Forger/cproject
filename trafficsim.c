@@ -188,9 +188,7 @@ void displayMenu() {
     printf(CLEAR_SCREEN);
     printf(COLOR_CYAN);
     printf("||============================================================||\n");
-    printf("||                                                            ||\n");
     printf("||          TRAFFIC INTERSECTION SIMULATION SYSTEM            ||\n");
-    printf("||                                                            ||\n");
     printf("||============================================================||\n");
     printf(COLOR_RESET "\n");
     printf(COLOR_MAGENTA "  Features:\n" COLOR_RESET);
