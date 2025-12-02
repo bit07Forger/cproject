@@ -30,6 +30,10 @@
 #define CAR_MOVE_INTERVAL_EW 3
 #define FRAME_RATE 10
 
+int car_move_interval_ns = CAR_MOVE_INTERVAL_NS;
+int car_move_interval_ew = CAR_MOVE_INTERVAL_EW;
+int enable_lane_change = 0;
+
 typedef enum { RED, YELLOW, GREEN } LightState;
 typedef enum { NORTH, SOUTH, EAST, WEST } Direction;
 
@@ -113,8 +117,8 @@ void drawTrafficLights() {
 
     CURSOR_POS(GRID_HEIGHT + 4, 1);
     {
-        double speed_ns = (double)FRAME_RATE / (double)CAR_MOVE_INTERVAL_NS;
-        double speed_ew = (double)FRAME_RATE / (double)CAR_MOVE_INTERVAL_EW;
+        double speed_ns = (double)FRAME_RATE / (double)car_move_interval_ns;
+        double speed_ew = (double)FRAME_RATE / (double)car_move_interval_ew;
         printf("N-S speed: %.2f cells/s    E-W speed: %.2f cells/s", speed_ns, speed_ew);
     }
 }
@@ -122,6 +126,14 @@ void drawTrafficLights() {
 void initCars() {
     for (int i = 0; i < MAX_CARS; i++)
         cars[i].active = 0;
+}
+
+int countLaneCars(Direction dir) {
+    int cnt = 0;
+    for (int i = 0; i < MAX_CARS; i++)
+        if (cars[i].active && cars[i].dir == dir)
+            cnt++;
+    return cnt;
 }
 
 int isOccupied(int x, int y, int ignore) {
@@ -178,7 +190,7 @@ void updateCars(int tick) {
     for (int i = 0; i < MAX_CARS; i++) {
         Car* c = &cars[i];
         if (!c->active) continue;
-        int interval = (c->dir == NORTH || c->dir == SOUTH) ? CAR_MOVE_INTERVAL_NS : CAR_MOVE_INTERVAL_EW;
+        int interval = (c->dir == NORTH || c->dir == SOUTH) ? car_move_interval_ns : car_move_interval_ew;
         if (interval > 1 && (tick % interval) != 0) {
             drawCar(c, 0);
             continue;
@@ -197,6 +209,42 @@ void updateCars(int tick) {
         }
 
         if (!canMove(c) || isOccupied(nx, ny, i)) {
+            /* attempt lane change if enabled and lane is congested */
+            if (enable_lane_change && countLaneCars(c->dir) > 5) {
+                int swapped = 0;
+                if (c->dir == NORTH || c->dir == SOUTH) {
+                    /* try shift left then right */
+                    int lx = c->x - 1;
+                    int rx = c->x + 1;
+                    if (lx >= 0 && !isOccupied(lx, c->y, i)) {
+                        drawCar(c, 1);
+                        c->x = lx;
+                        drawCar(c, 0);
+                        swapped = 1;
+                    } else if (rx < GRID_WIDTH && !isOccupied(rx, c->y, i)) {
+                        drawCar(c, 1);
+                        c->x = rx;
+                        drawCar(c, 0);
+                        swapped = 1;
+                    }
+                } else {
+                    /* E/W: try shift up then down */
+                    int uy = c->y - 1;
+                    int dy = c->y + 1;
+                    if (uy >= 0 && !isOccupied(c->x, uy, i)) {
+                        drawCar(c, 1);
+                        c->y = uy;
+                        drawCar(c, 0);
+                        swapped = 1;
+                    } else if (dy < GRID_HEIGHT && !isOccupied(c->x, dy, i)) {
+                        drawCar(c, 1);
+                        c->y = dy;
+                        drawCar(c, 0);
+                        swapped = 1;
+                    }
+                }
+                if (swapped) continue;
+            }
             drawCar(c, 0);
             continue;
         }
@@ -221,11 +269,12 @@ void displayMenu() {
     printf("    4. On-screen per-lane speeds\n\n");
     printf(COLOR_GREEN "  MAIN MENU\n" COLOR_RESET);
     printf("  -----------------------------------------------\n\n");
-    printf("    1. Start Custom Simulation\n");
-    printf("    2. Start Standard Simulation (60 seconds)\n");
-    printf("    3. Exit\n\n");
+    printf("    1. Start Custom Simulation (set durations & speeds)\n");
+    printf("    2. Start Standard Simulation (60 seconds, defaults)\n");
+    printf("    3. Start Simulation with Lane-Change enabled\n");
+    printf("    4. Exit\n\n");
     printf("  -----------------------------------------------\n\n");
-    printf("  Enter choice (1-3): ");
+    printf("  Enter choice (1-4): ");
     fflush(stdout);
 }
 
@@ -267,17 +316,56 @@ int main() {
     while (1) {
         displayMenu();
         scanf("%d", &choice);
-
         if (choice == 1) {
+            double ns_speed, ew_speed;
+            int lane_opt;
             printf("\nEnter simulation duration in seconds (1-300): ");
             scanf("%d", &duration);
             if (duration < 1) duration = 1;
             if (duration > 300) duration = 300;
+            printf("Enter N-S speed (cells/sec, e.g. 1.0): ");
+            scanf("%lf", &ns_speed);
+            if (ns_speed <= 0) ns_speed = (double)FRAME_RATE / (double)CAR_MOVE_INTERVAL_NS;
+            printf("Enter E-W speed (cells/sec, e.g. 1.0): ");
+            scanf("%lf", &ew_speed);
+            if (ew_speed <= 0) ew_speed = (double)FRAME_RATE / (double)CAR_MOVE_INTERVAL_EW;
+            car_move_interval_ns = (int)( (FRAME_RATE / ns_speed) + 0.5 );
+            if (car_move_interval_ns < 1) car_move_interval_ns = 1;
+            car_move_interval_ew = (int)( (FRAME_RATE / ew_speed) + 0.5 );
+            if (car_move_interval_ew < 1) car_move_interval_ew = 1;
+            printf("Enable lane-change when congested? (0 = no, 1 = yes): ");
+            scanf("%d", &lane_opt);
+            enable_lane_change = lane_opt ? 1 : 0;
             runSimulation(duration);
         }
-        else if (choice == 2)
+        else if (choice == 2) {
+            car_move_interval_ns = CAR_MOVE_INTERVAL_NS;
+            car_move_interval_ew = CAR_MOVE_INTERVAL_EW;
+            enable_lane_change = 0;
             runSimulation(60);
-        else if (choice == 3)
+        }
+        else if (choice == 3) {
+            double ns_speed, ew_speed;
+            printf("\nEnter simulation duration in seconds (1-300): ");
+            scanf("%d", &duration);
+            if (duration < 1) duration = 1;
+            if (duration > 300) duration = 300;
+            printf("Enter N-S speed (cells/sec, or 0 for default): ");
+            scanf("%lf", &ns_speed);
+            printf("Enter E-W speed (cells/sec, or 0 for default): ");
+            scanf("%lf", &ew_speed);
+            if (ns_speed > 0) {
+                car_move_interval_ns = (int)( (FRAME_RATE / ns_speed) + 0.5 );
+                if (car_move_interval_ns < 1) car_move_interval_ns = 1;
+            } else car_move_interval_ns = CAR_MOVE_INTERVAL_NS;
+            if (ew_speed > 0) {
+                car_move_interval_ew = (int)( (FRAME_RATE / ew_speed) + 0.5 );
+                if (car_move_interval_ew < 1) car_move_interval_ew = 1;
+            } else car_move_interval_ew = CAR_MOVE_INTERVAL_EW;
+            enable_lane_change = 1;
+            runSimulation(duration);
+        }
+        else if (choice == 4)
             return 0;
         else {
             printf("\nInvalid choice.\n");
