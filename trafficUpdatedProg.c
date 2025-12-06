@@ -34,17 +34,17 @@
 #define TOP_BORDER (INTERSECTION_Y - (EW_LANE_WIDTH/2))
 #define BOTTOM_BORDER (INTERSECTION_Y + (EW_LANE_WIDTH/2) - 1)
 
-/* ============ LANE DEFINITIONS ============ */
-/* N-S Lanes - INSIDE the borders, not on them */
-#define NS_EAST_LANE (LEFT_BORDER + 2)      /* Inside left border */
-#define NS_WEST_LANE (RIGHT_BORDER - 2)     /* Inside right border */
+/* ============ LANE POSITIONS ============ */
+/* N-S Lanes - safely inside borders */
+#define NS_EAST_LANE (LEFT_BORDER + 2)
+#define NS_WEST_LANE (RIGHT_BORDER - 2)
 
-/* E-W Lanes - INSIDE the borders, not on them */
-#define EW_NORTH_LANE (TOP_BORDER + 2)      /* Inside top border */
-#define EW_SOUTH_LANE (BOTTOM_BORDER - 2)   /* Inside bottom border */
+/* E-W Lanes - safely inside borders */
+#define EW_NORTH_LANE (TOP_BORDER + 2)
+#define EW_SOUTH_LANE (BOTTOM_BORDER - 2)
 
 /* ============ STOP LINE POSITIONS ============ */
-#define STOP_LINE_DISTANCE 1  /* Cars stop 1 cell before intersection */
+#define STOP_LINE_DISTANCE 1
 
 /* ============ ANSI COLOR CODES ============ */
 #define COLOR_BLACK "\033[30m"
@@ -119,7 +119,8 @@ int isAboutToEnterIntersection(Car *car);
 int hasCrossedIntersection(Car *car);
 char getCharAtPosition(int x, int y);
 int isInSameLaneOppositeDirection(Car *car1, Car *car2);
-int isAtStopLine(Car *car);  /* NEW: Check if car is at stop line */
+int isAtStopLine(Car *car);
+int isOnBorder(int x, int y);
 
 /* ============ MAIN FUNCTION ============ */
 int main() {
@@ -162,24 +163,24 @@ int main() {
 
 /* ============ IMPLEMENTATIONS ============ */
 
-/* NEW: Check if car is at stop line (right before intersection) */
+int isOnBorder(int x, int y) {
+    return (x == LEFT_BORDER || x == RIGHT_BORDER || 
+            y == TOP_BORDER || y == BOTTOM_BORDER);
+}
+
 int isAtStopLine(Car *car) {
     if (car == NULL) return 0;
     
     if (car->direction == DIR_NORTH) {
-        /* North-bound: stop at BOTTOM_BORDER + STOP_LINE_DISTANCE */
         return (car->y == BOTTOM_BORDER + STOP_LINE_DISTANCE);
     }
     else if (car->direction == DIR_SOUTH) {
-        /* South-bound: stop at TOP_BORDER - STOP_LINE_DISTANCE */
         return (car->y == TOP_BORDER - STOP_LINE_DISTANCE);
     }
     else if (car->direction == DIR_EAST) {
-        /* East-bound: stop at LEFT_BORDER - STOP_LINE_DISTANCE */
         return (car->x == LEFT_BORDER - STOP_LINE_DISTANCE);
     }
     else if (car->direction == DIR_WEST) {
-        /* West-bound: stop at RIGHT_BORDER + STOP_LINE_DISTANCE */
         return (car->x == RIGHT_BORDER + STOP_LINE_DISTANCE);
     }
     
@@ -206,36 +207,13 @@ int isInSameLaneOppositeDirection(Car *car1, Car *car2) {
     return 0;
 }
 
-/* FIXED: Only return border characters for border positions */
 char getCharAtPosition(int x, int y) {
-    /* Check for vertical borders */
-    if (x == LEFT_BORDER) {
-        /* Only draw if it's in the E-W road area or outside */
-        if (y >= TOP_BORDER && y <= BOTTOM_BORDER) {
-            return '|';  /* Inside intersection area */
-        }
-        return '|';  /* Outside intersection area */
-    }
-    
-    if (x == RIGHT_BORDER) {
-        if (y >= TOP_BORDER && y <= BOTTOM_BORDER) {
-            return '|';
-        }
+    /* Border characters */
+    if (x == LEFT_BORDER || x == RIGHT_BORDER) {
         return '|';
     }
     
-    /* Check for horizontal borders */
-    if (y == TOP_BORDER) {
-        if (x >= LEFT_BORDER && x <= RIGHT_BORDER) {
-            return '-';  /* Inside intersection area */
-        }
-        return '-';  /* Outside intersection area */
-    }
-    
-    if (y == BOTTOM_BORDER) {
-        if (x >= LEFT_BORDER && x <= RIGHT_BORDER) {
-            return '-';
-        }
+    if (y == TOP_BORDER || y == BOTTOM_BORDER) {
         return '-';
     }
     
@@ -327,19 +305,16 @@ void initSimulation(Simulation *sim) {
 void drawBordersOnly(Simulation *sim) {
     int x, y;
     
-    /* Draw top and bottom borders (full width) */
     for (x = 0; x < GRID_WIDTH; x++) {
         sim->grid[TOP_BORDER][x] = '-';
         sim->grid[BOTTOM_BORDER][x] = '-';
     }
     
-    /* Draw left and right borders (full height) */
     for (y = 0; y < GRID_HEIGHT; y++) {
         sim->grid[y][LEFT_BORDER] = '|';
         sim->grid[y][RIGHT_BORDER] = '|';
     }
     
-    /* Draw intersection corners */
     sim->grid[TOP_BORDER][LEFT_BORDER] = '+';
     sim->grid[TOP_BORDER][RIGHT_BORDER] = '+';
     sim->grid[BOTTOM_BORDER][LEFT_BORDER] = '+';
@@ -420,6 +395,7 @@ void displayTrafficLights(Simulation *sim) {
 }
 
 int isValidPosition(int x, int y) {
+    /* Position must be on screen */
     return (x >= 0 && x < GRID_WIDTH && y >= 0 && y < GRID_HEIGHT);
 }
 
@@ -474,64 +450,49 @@ int isPositionOccupied(Simulation *sim, int x, int y, int excludeId) {
     return 0;
 }
 
-/* FIXED: Cars stop at stop line BEFORE intersection, not in it */
+/* SIMPLIFIED: Car movement logic */
 int canCarMove(Car *car, Simulation *sim) {
-    int atStopLine;
-    int hasCrossed;
-    int currentlyInIntersection;
-    
     if (car == NULL || !car->active) return 0;
     
-    hasCrossed = hasCrossedIntersection(car);
-    if (hasCrossed) {
-        return 1;  /* Once crossed, ignore all lights */
+    /* If car has already crossed intersection, it can always move */
+    if (car->has_crossed_intersection) {
+        return 1;
     }
     
-    currentlyInIntersection = isInIntersection(car->x, car->y);
-    
-    if (currentlyInIntersection) {
-        return 1;  /* Once in intersection, keep moving */
+    /* If car is in intersection, it can always move */
+    if (isInIntersection(car->x, car->y)) {
+        return 1;
     }
     
-    /* NEW: Check if car is at stop line */
-    atStopLine = isAtStopLine(car);
-    
-    if (!atStopLine) {
-        return 1;  /* Not at stop line, can move */
-    }
-    
-    /* Car is AT STOP LINE - check traffic light */
-    if (car->direction == DIR_NORTH || car->direction == DIR_SOUTH) {
-        if (sim->nsLight.state == LIGHT_RED) {
-            return 0;  /* Stop at red light */
+    /* Check if car is at stop line */
+    if (isAtStopLine(car)) {
+        /* Check traffic light */
+        if (car->direction == DIR_NORTH || car->direction == DIR_SOUTH) {
+            return (sim->nsLight.state != LIGHT_RED);
         } else {
-            return 1;  /* Move on green/yellow */
-        }
-    } else {
-        if (sim->ewLight.state == LIGHT_RED) {
-            return 0;  /* Stop at red light */
-        } else {
-            return 1;  /* Move on green/yellow */
+            return (sim->ewLight.state != LIGHT_RED);
         }
     }
+    
+    /* Car is not at stop line, not in intersection, hasn't crossed - it can move */
+    return 1;
 }
 
 void drawCar(Car *car, int erase, Simulation *sim) {
-    if (car == NULL || !isValidPosition(car->x, car->y)) return;
+    if (car == NULL) return;
     
     printf("\033[%d;%dH", car->y + 1, car->x + 1);
     
     if (erase) {
-        /* Always restore the correct character */
-        char originalChar = getCharAtPosition(car->x, car->y);
-        putchar(originalChar);
+        /* Restore the original character at this position */
+        char original = getCharAtPosition(car->x, car->y);
+        putchar(original);
     } else {
-        /* Color code based on position */
         if (isAtStopLine(car)) {
             printf("%s%c%s", COLOR_YELLOW, car->symbol, COLOR_RESET);
         } else if (isInIntersection(car->x, car->y)) {
             printf("%s%c%s", COLOR_GREEN, car->symbol, COLOR_RESET);
-        } else if (hasCrossedIntersection(car)) {
+        } else if (car->has_crossed_intersection) {
             printf("%s%c%s", COLOR_MAGENTA, car->symbol, COLOR_RESET);
         } else {
             printf("%s%c%s", COLOR_BLUE, car->symbol, COLOR_RESET);
@@ -540,7 +501,6 @@ void drawCar(Car *car, int erase, Simulation *sim) {
     fflush(stdout);
 }
 
-/* FIXED: Spawn cars INSIDE lanes, NOT on borders */
 int spawnCar(Simulation *sim) {
     int slot;
     Car *car;
@@ -560,39 +520,31 @@ int spawnCar(Simulation *sim) {
     car->active = 1;
     car->has_crossed_intersection = 0;
     
-    /* Spawn cars INSIDE the road area, NOT on borders */
+    /* Spawn cars at appropriate positions */
     switch (car->direction) {
         case DIR_NORTH:
-            car->x = NS_EAST_LANE;      /* Inside left border */
-            car->y = GRID_HEIGHT - 3;   /* Not on bottom edge */
+            car->x = NS_EAST_LANE;
+            car->y = GRID_HEIGHT - 2;
             car->symbol = '^';
             break;
         case DIR_SOUTH:
-            car->x = NS_WEST_LANE;      /* Inside right border */
-            car->y = 2;                 /* Not on top edge */
+            car->x = NS_WEST_LANE;
+            car->y = 1;
             car->symbol = 'v';
             break;
         case DIR_EAST:
-            car->x = 2;                 /* Not on left edge */
-            car->y = EW_SOUTH_LANE;     /* Inside bottom border */
+            car->x = 1;
+            car->y = EW_SOUTH_LANE;
             car->symbol = '>';
             break;
         case DIR_WEST:
-            car->x = GRID_WIDTH - 3;    /* Not on right edge */
-            car->y = EW_NORTH_LANE;     /* Inside top border */
+            car->x = GRID_WIDTH - 2;
+            car->y = EW_NORTH_LANE;
             car->symbol = '<';
             break;
     }
     
-    /* Ensure car is not spawning in intersection or at stop line */
-    if (isInIntersection(car->x, car->y) || isAtStopLine(car)) {
-        /* Adjust position if spawned in wrong place */
-        if (car->direction == DIR_NORTH) car->y = BOTTOM_BORDER + 3;
-        else if (car->direction == DIR_SOUTH) car->y = TOP_BORDER - 3;
-        else if (car->direction == DIR_EAST) car->x = LEFT_BORDER - 3;
-        else if (car->direction == DIR_WEST) car->x = RIGHT_BORDER + 3;
-    }
-    
+    /* Ensure car is not spawning in occupied position */
     if (isPositionOccupied(sim, car->x, car->y, car->id)) {
         car->active = 0;
         return 0;
@@ -603,11 +555,11 @@ int spawnCar(Simulation *sim) {
     return 1;
 }
 
+/* SIMPLIFIED: Cars can now properly cross the intersection */
 void updateCars(Simulation *sim) {
     int i;
     Car *car;
     int nextX, nextY;
-    int wasInIntersection, willBeInIntersection;
     
     for (i = 0; i < MAX_CARS; i++) {
         car = &sim->cars[i];
@@ -631,30 +583,32 @@ void updateCars(Simulation *sim) {
                 break;
         }
         
-        if (!isValidPosition(nextX, nextY)) {
+        /* Check if car is leaving the screen */
+        if (nextX < 0 || nextX >= GRID_WIDTH || nextY < 0 || nextY >= GRID_HEIGHT) {
             drawCar(car, 1, sim);
             car->active = 0;
             sim->activeCarCount--;
             continue;
         }
         
+        /* Check if car can move */
         if (!canCarMove(car, sim) || 
             isPositionOccupied(sim, nextX, nextY, car->id)) {
             drawCar(car, 0, sim);
             continue;
         }
         
+        /* Move the car */
         drawCar(car, 1, sim);
         car->x = nextX;
         car->y = nextY;
-        drawCar(car, 0, sim);
         
-        wasInIntersection = isInIntersection(car->x, car->y);
-        willBeInIntersection = isInIntersection(nextX, nextY);
-        
-        if (wasInIntersection && !willBeInIntersection) {
-            car->has_crossed_intersection = 1;
+        /* Update crossing status */
+        if (!car->has_crossed_intersection) {
+            car->has_crossed_intersection = hasCrossedIntersection(car);
         }
+        
+        drawCar(car, 0, sim);
     }
 }
 
@@ -669,16 +623,15 @@ void displayMenu(void) {
     
     printf("\n%sFeatures:%s\n", COLOR_MAGENTA, COLOR_RESET);
     printf("  * CLEAN design - ONLY borders visible\n");
-    printf("  * Cars spawn INSIDE lanes, NOT on borders\n");
-    printf("  * Cars stop at stop line (1 cell BEFORE intersection)\n");
-    printf("  * No border erasure - borders stay intact\n");
-    printf("  * One-way lanes only\n");
+    printf("  * Cars move through intersection properly\n");
+    printf("  * Cars stop at stop line when light is red\n");
+    printf("  * Cars continue after crossing intersection\n");
     
-    printf("\n%sSTOP LINE POSITIONS:%s\n", COLOR_GREEN, COLOR_RESET);
-    printf("  North-bound: stops at Y=%d (1 above intersection)\n", BOTTOM_BORDER + 1);
-    printf("  South-bound: stops at Y=%d (1 below intersection)\n", TOP_BORDER - 1);
-    printf("  East-bound: stops at X=%d (1 left of intersection)\n", LEFT_BORDER - 1);
-    printf("  West-bound: stops at X=%d (1 right of intersection)\n", RIGHT_BORDER + 1);
+    printf("\n%sCar States:%s\n", COLOR_GREEN, COLOR_RESET);
+    printf("  %sBlue%s = Normal moving towards intersection\n", COLOR_BLUE, COLOR_RESET);
+    printf("  %sYellow%s = At stop line (checking light)\n", COLOR_YELLOW, COLOR_RESET);
+    printf("  %sGreen%s = In intersection\n", COLOR_GREEN, COLOR_RESET);
+    printf("  %sMagenta%s = Crossed intersection (continuing)\n", COLOR_MAGENTA, COLOR_RESET);
     
     printf("\n%sMAIN MENU%s\n", COLOR_GREEN, COLOR_RESET);
     printf("==============================================================\n\n");
@@ -728,20 +681,16 @@ void runSimulation(Simulation *sim, int durationSeconds) {
     displayGrid(sim);
     displayTrafficLights(sim);
     
-    printf("\n%sCONFIGURATION:%s\n", COLOR_CYAN, COLOR_RESET);
-    printf("  Borders: X[%d,%d], Y[%d,%d]\n", 
-           LEFT_BORDER, RIGHT_BORDER, TOP_BORDER, BOTTOM_BORDER);
-    printf("  N-S Lanes: East=%d (^), West=%d (v)\n", NS_EAST_LANE, NS_WEST_LANE);
-    printf("  E-W Lanes: North=%d (<), South=%d (>)\n", EW_NORTH_LANE, EW_SOUTH_LANE);
-    printf("  Stop line: %d cell(s) before intersection\n", STOP_LINE_DISTANCE);
-    printf("  Cars NEVER spawn or move on borders!\n");
+    printf("\n%sTRAFFIC SIMULATION ACTIVE%s\n", COLOR_CYAN, COLOR_RESET);
+    printf("  Cars will properly cross the intersection!\n");
+    printf("  N-S Light: Green = North/South cars can go\n");
+    printf("  E-W Light: Green = East/West cars can go\n");
     
     printf("\n%sCar States:%s\n", COLOR_CYAN, COLOR_RESET);
     printf("  %sBlue%s = Normal moving\n", COLOR_BLUE, COLOR_RESET);
     printf("  %sYellow%s = At stop line (checking light)\n", COLOR_YELLOW, COLOR_RESET);
     printf("  %sGreen%s = In intersection\n", COLOR_GREEN, COLOR_RESET);
     printf("  %sMagenta%s = Crossed intersection\n", COLOR_MAGENTA, COLOR_RESET);
-    printf("\nCars stop ONLY at YELLOW positions\n");
     
     fflush(stdout);
     SLEEP(1000);
