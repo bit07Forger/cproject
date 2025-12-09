@@ -1,0 +1,13 @@
+Function    Header        Purpose                        Returns                Key Points
+───────    ──────        ───────                        ───────                ──────────
+printf     stdio.h       Formatted output               chars printed          Uses format specifiers
+scanf      stdio.h       Formatted input                items read             Needs addresses (&)
+putchar    stdio.h       Single char output             char written           Simple, efficient
+fwrite     stdio.h       Block output                   items written          Good for arrays
+getchar    stdio.h       Single char input              char read              Reads from stdin
+fflush     stdio.h       Flush buffer                   0/EOF                  Forces output
+rand       stdlib.h      Random number                  0-RAND_MAX             Pseudo-random
+srand      stdlib.h      Seed RNG                       void                   Call once at start
+time       time.h        Current time                   time_t                 Seconds since 1970
+Sleep      windows.h     Millisecond pause              void                   Windows only
+usleep     unistd.h      Microsecond pause              0/-1                   Unix/Linux only

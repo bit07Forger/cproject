@@ -18,7 +18,6 @@
 #define COLOR_GREEN   "\033[32m"
 #define COLOR_BLUE    "\033[34m"
 #define COLOR_CYAN    "\033[36m"
-#define COLOR_MAGENTA "\033[35m"
 #define COLOR_RESET   "\033[0m"
 
 #define GRID_WIDTH 80
@@ -55,28 +54,11 @@ int car_move_interval_ns = CAR_MOVE_INTERVAL_NS;
 int car_move_interval_ew = CAR_MOVE_INTERVAL_EW;
 int enable_lane_change = 0;
 
-/* Define Direction and LightState enums first for use in structs */
-typedef enum { RED, YELLOW, GREEN } LightState;
-typedef enum { NORTH, SOUTH, EAST, WEST } Direction;
-
 /* Pedestrian crossing state */
 typedef enum { DONT_WALK, WALK } PedestrianSignal;
 
-typedef struct {
-    int x, y;
-    Direction dir;
-    char symbol;
-    int active;
-} Pedestrian;
-
-#define MAX_PEDESTRIANS 10
-#define PEDESTRIAN_SPAWN_INTERVAL 15  /* Spawn a pedestrian every 15 frames */
-#define PEDESTRIAN_MOVE_INTERVAL 2    /* Pedestrians move every 2 frames */
-
-Pedestrian pedestrians[MAX_PEDESTRIANS];
-PedestrianSignal ns_ped_signal = DONT_WALK;   /* N-S pedestrian crossing signal */
-PedestrianSignal ew_ped_signal = DONT_WALK;   /* E-W pedestrian crossing signal */
-int ped_signal_timer = 0;                       /* Timer for pedestrian signal */
+typedef enum { RED, YELLOW, GREEN } LightState;
+typedef enum { NORTH, SOUTH, EAST, WEST } Direction;
 
 typedef struct {
     LightState state;
@@ -92,12 +74,26 @@ typedef struct {
     int has_crossed;
 } Car;
 
+typedef struct {
+    int x, y;
+    Direction dir;
+    char symbol;
+    int active;
+} Pedestrian;
+
 #define MAX_CARS 20
+#define MAX_PEDESTRIANS 10
+#define PEDESTRIAN_SPAWN_INTERVAL 15
+#define PEDESTRIAN_MOVE_INTERVAL 2
+
 Car cars[MAX_CARS];
+Pedestrian pedestrians[MAX_PEDESTRIANS];
 char grid[GRID_HEIGHT][GRID_WIDTH];
 TrafficLight nsLight, ewLight;
 char lane_change_msg[100] = "";
 int lane_change_msg_ticks = 0;
+PedestrianSignal ns_ped_signal = DONT_WALK;
+PedestrianSignal ew_ped_signal = DONT_WALK;
 
 void initGrid() {
     int i, j;
@@ -298,7 +294,6 @@ void initPedestrians() {
     }
     ns_ped_signal = DONT_WALK;
     ew_ped_signal = DONT_WALK;
-    ped_signal_timer = 0;
 }
 
 int isValidPosition(int x, int y) {
@@ -326,6 +321,17 @@ int hasCrossedIntersection(Car *c) {
     if (c->dir == EAST)  return (c->x > RIGHT_BORDER);
     if (c->dir == WEST)  return (c->x < LEFT_BORDER);
     return 0;
+}
+
+int isPedestrianInIntersection(Pedestrian *p) {
+    if (!p || !p->active) return 0;
+    if (p->dir == NORTH || p->dir == SOUTH) {
+        return (p->x >= LEFT_BORDER && p->x <= RIGHT_BORDER &&
+                p->y >= TOP_BORDER - 3 && p->y <= BOTTOM_BORDER + 3);
+    } else {
+        return (p->x >= LEFT_BORDER - 3 && p->x <= RIGHT_BORDER + 3 &&
+                p->y >= TOP_BORDER && p->y <= BOTTOM_BORDER);
+    }
 }
 
 int canMove(Car* c) {
@@ -363,17 +369,6 @@ int isPedestrianAtPosition(int x, int y) {
         if (pedestrians[i].x == x && pedestrians[i].y == y) return 1;
     }
     return 0;
-}
-
-int isPedestrianInIntersection(Pedestrian *p) {
-    if (!p || !p->active) return 0;
-    if (p->dir == NORTH || p->dir == SOUTH) {
-        return (p->x >= LEFT_BORDER && p->x <= RIGHT_BORDER &&
-                p->y >= TOP_BORDER - 3 && p->y <= BOTTOM_BORDER + 3);
-    } else {
-        return (p->x >= LEFT_BORDER - 3 && p->x <= RIGHT_BORDER + 3 &&
-                p->y >= TOP_BORDER && p->y <= BOTTOM_BORDER);
-    }
 }
 
 void drawCar(Car* c, int erase) {
@@ -462,38 +457,6 @@ void spawnPedestrian() {
     }
 }
 
-void updatePedestrians(int tick) {
-    for (int i = 0; i < MAX_PEDESTRIANS; i++) {
-        Pedestrian* p = &pedestrians[i];
-        if (!p->active) continue;
-        
-        /* Only move pedestrians during WALK signal */
-        int can_move = 0;
-        if ((p->dir == NORTH || p->dir == SOUTH) && ns_ped_signal == WALK) {
-            can_move = 1;
-        } else if ((p->dir == EAST || p->dir == WEST) && ew_ped_signal == WALK) {
-            can_move = 1;
-        }
-        
-        if (can_move && (tick % PEDESTRIAN_MOVE_INTERVAL) == 0) {
-            drawPedestrian(p, 1);
-            if (p->dir == NORTH) p->y--;
-            else if (p->dir == SOUTH) p->y++;
-            else if (p->dir == EAST) p->x++;
-            else if (p->dir == WEST) p->x--;
-            
-            /* Deactivate if off-grid */
-            if (p->x < 0 || p->x >= GRID_WIDTH || p->y < 0 || p->y >= GRID_HEIGHT) {
-                p->active = 0;
-            } else {
-                drawPedestrian(p, 0);
-            }
-        } else if (p->active) {
-            drawPedestrian(p, 0);
-        }
-    }
-}
-
 void updateCars(int tick) {
     for (int i = 0; i < MAX_CARS; i++) {
         Car* c = &cars[i];
@@ -517,7 +480,10 @@ void updateCars(int tick) {
             continue;
         }
         
-        if (!canMove(c) || isOccupied(nx, ny, i) || isPedestrianAtPosition(nx, ny)) {
+        /* Check for pedestrian collision - cars stop if pedestrian is crossing */
+        int has_pedestrian_ahead = isPedestrianAtPosition(nx, ny);
+        
+        if (!canMove(c) || isOccupied(nx, ny, i) || has_pedestrian_ahead) {
             if (enable_lane_change && countLaneCars(c->dir) > 5) {
                 int swapped = 0;
                 if (c->dir == NORTH || c->dir == SOUTH) {
@@ -566,28 +532,59 @@ void updateCars(int tick) {
     }
 }
 
+void updatePedestrians(int tick) {
+    for (int i = 0; i < MAX_PEDESTRIANS; i++) {
+        Pedestrian* p = &pedestrians[i];
+        if (!p->active) continue;
+        
+        if ((tick % PEDESTRIAN_MOVE_INTERVAL) != 0) {
+            drawPedestrian(p, 0);
+            continue;
+        }
+        
+        /* Check if pedestrian can cross based on signal */
+        PedestrianSignal* signal = NULL;
+        if (p->dir == NORTH || p->dir == SOUTH) {
+            signal = &ns_ped_signal;
+        } else {
+            signal = &ew_ped_signal;
+        }
+        
+        /* Pedestrian only moves if WALK signal is active or already in intersection */
+        if (*signal != WALK && !isPedestrianInIntersection(p)) {
+            drawPedestrian(p, 0);
+            continue;
+        }
+        
+        int nx = p->x, ny = p->y;
+        if (p->dir == NORTH) ny++;
+        if (p->dir == SOUTH) ny--;
+        if (p->dir == EAST)  nx--;
+        if (p->dir == WEST)  nx++;
+        
+        /* Remove pedestrian if off-screen */
+        if (nx < 0 || nx >= GRID_WIDTH || ny < 0 || ny >= GRID_HEIGHT) {
+            drawPedestrian(p, 1);
+            p->active = 0;
+            continue;
+        }
+        
+        drawPedestrian(p, 1);
+        p->x = nx;
+        p->y = ny;
+        drawPedestrian(p, 0);
+    }
+}
+
 void displayMenu() {
     printf(CLEAR_SCREEN);
     printf(COLOR_CYAN);
-    printf("||============================================================||\n");
-    printf("||                                                            ||\n");
-    printf("||          TRAFFIC INTERSECTION SIMULATION SYSTEM            ||\n");
-    printf("||                                                            ||\n");
-    printf("||============================================================||\n");
-    printf(COLOR_RESET "\n");
-    printf(COLOR_MAGENTA "  Features:\n" COLOR_RESET);
-    printf("    1. Adaptive traffic light control\n");
-    printf("    2. Per-lane speed control (N-S / E-W)\n");
-    printf("    3. Live countdown to next light change\n");
-    printf("    4. Lane-change when congested (>5 cars)\n");
-    printf("    5. Pedestrian crossing with WALK/DON'T WALK signals\n");
-    printf("    6. Zebra crossing lines\n\n");
+    printf("||================ TRAFFIC SIMULATION ================||\n");
+    printf(COLOR_RESET);
+    printf("\n  Key Features: \n    1. Configurable spawn rate\n    2. Per-lane speed control (N-S / E-W)\n    3. Live countdown to next light change\n    4. On-screen per-lane speeds\n    5. Pedestrian crossings with WALK/DON'T WALK signals\n\n");
     printf(COLOR_GREEN "  MAIN MENU\n" COLOR_RESET);
     printf("  -----------------------------------------------\n\n");
-    printf("    1. Start Custom Simulation (set durations & speeds)\n");
-    printf("    2. Start Standard Simulation (60 seconds, defaults)\n");
-    printf("    3. Start Simulation with Lane-Change enabled\n");
-    printf("    4. Exit\n\n");
+    printf("    1. Start Custom Simulation (set durations & speeds)\n    2. Start Standard Simulation (60 seconds, defaults)\n    3. Start Simulation with Lane-Change enabled\n    4. Exit\n\n");
     printf("  -----------------------------------------------\n\n");
     printf("  Enter choice (1-4): ");
     fflush(stdout);
@@ -607,6 +604,7 @@ void runSimulation(int duration) {
         updateLight(&nsLight);
         updateLight(&ewLight);
         adaptiveControl();
+        updatePedestrianSignals();
         drawTrafficLights();
         if (frames % SPAWN_INTERVAL == 0)
             spawnCar();
