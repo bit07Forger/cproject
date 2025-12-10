@@ -557,7 +557,6 @@ void updateCars(int tick) {
         c->x = nx;
         c->y = ny;
         
-        /* Update crossing status */
         if (!c->has_crossed) {
             c->has_crossed = hasCrossedIntersection(c);
         }
@@ -570,24 +569,14 @@ void displayMenu() {
     printf(CLEAR_SCREEN);
     printf(COLOR_CYAN);
     printf("||============================================================||\n");
-    printf("||                                                            ||\n");
     printf("||          TRAFFIC INTERSECTION SIMULATION SYSTEM            ||\n");
-    printf("||                                                            ||\n");
     printf("||============================================================||\n");
     printf(COLOR_RESET "\n");
     printf(COLOR_MAGENTA "  Features:\n" COLOR_RESET);
-    printf("    1. Adaptive traffic light control\n");
-    printf("    2. Per-lane speed control (N-S / E-W)\n");
-    printf("    3. Live countdown to next light change\n");
-    printf("    4. Lane-change when congested (>5 cars)\n");
-    printf("    5. Pedestrian crossing with WALK/DON'T WALK signals\n");
-    printf("    6. Zebra crossing lines\n\n");
+    printf("    1. Adaptive traffic light control\n2. Per-lane speed control (N-S / E-W)\n3. Live countdown to next light change\n4. Lane-change when congested (>5 cars)\n5. Pedestrian crossing with WALK/DON'T WALK signals\n6. Zebra crossing lines\n\n");
     printf(COLOR_GREEN "  MAIN MENU\n" COLOR_RESET);
     printf("  -----------------------------------------------\n\n");
-    printf("    1. Start Custom Simulation (set durations & speeds)\n");
-    printf("    2. Start Standard Simulation (60 seconds, defaults)\n");
-    printf("    3. Start Simulation with Lane-Change enabled\n");
-    printf("    4. Exit\n\n");
+    printf("    1. Start Custom Simulation (set durations & speeds)\n2. Start Standard Simulation (60 seconds, defaults)\n3. Start Simulation with Lane-Change enabled\n4. Exit\n\n");
     printf("  -----------------------------------------------\n\n");
     printf("  Enter choice (1-4): ");
     fflush(stdout);
