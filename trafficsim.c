@@ -30,7 +30,6 @@
 #define CAR_MOVE_INTERVAL_EW 3
 #define FRAME_RATE 10
 
-/* Road boundaries */
 #define NS_LANE_WIDTH 6
 #define EW_LANE_WIDTH 4
 #define LEFT_BORDER (INTERSECTION_X - (NS_LANE_WIDTH/2))
@@ -38,16 +37,13 @@
 #define TOP_BORDER (INTERSECTION_Y - (EW_LANE_WIDTH/2))
 #define BOTTOM_BORDER (INTERSECTION_Y + (EW_LANE_WIDTH/2) - 1)
 
-/* Lane positions - adjusted to avoid center partition */
 #define NS_EAST_LANE (LEFT_BORDER + 2)
 #define NS_WEST_LANE (RIGHT_BORDER - 2)
 #define EW_NORTH_LANE (TOP_BORDER + 1)
 #define EW_SOUTH_LANE (BOTTOM_BORDER - 1)
 
-/* Stop line positions */
 #define STOP_LINE_DISTANCE 1
 
-/* Old macro compatibility */
 #define IX INTERSECTION_X
 #define IY INTERSECTION_Y
 
@@ -55,11 +51,9 @@ int car_move_interval_ns = CAR_MOVE_INTERVAL_NS;
 int car_move_interval_ew = CAR_MOVE_INTERVAL_EW;
 int enable_lane_change = 0;
 
-/* Define Direction and LightState enums first for use in structs */
 typedef enum { RED, YELLOW, GREEN } LightState;
 typedef enum { NORTH, SOUTH, EAST, WEST } Direction;
 
-/* Pedestrian crossing state */
 typedef enum { DONT_WALK, WALK } PedestrianSignal;
 
 typedef struct {
@@ -70,13 +64,13 @@ typedef struct {
 } Pedestrian;
 
 #define MAX_PEDESTRIANS 10
-#define PEDESTRIAN_SPAWN_INTERVAL 15  /* Spawn a pedestrian every 15 frames */
-#define PEDESTRIAN_MOVE_INTERVAL 2    /* Pedestrians move every 2 frames */
+#define PEDESTRIAN_SPAWN_INTERVAL 15  
+#define PEDESTRIAN_MOVE_INTERVAL 2  
 
 Pedestrian pedestrians[MAX_PEDESTRIANS];
-PedestrianSignal ns_ped_signal = DONT_WALK;   /* N-S pedestrian crossing signal */
-PedestrianSignal ew_ped_signal = DONT_WALK;   /* E-W pedestrian crossing signal */
-int ped_signal_timer = 0;                       /* Timer for pedestrian signal */
+PedestrianSignal ns_ped_signal = DONT_WALK;
+PedestrianSignal ew_ped_signal = DONT_WALK;
+int ped_signal_timer = 0;                 
 
 typedef struct {
     LightState state;
@@ -101,12 +95,9 @@ int lane_change_msg_ticks = 0;
 
 void initGrid() {
     int i, j;
-    
-    /* Clear grid */
     for (i = 0; i < GRID_HEIGHT; i++)
         for (j = 0; j < GRID_WIDTH; j++)
             grid[i][j] = ' ';
-    
     /* Draw horizontal borders (top and bottom) */
     for (j = 0; j < GRID_WIDTH; j++) {
         grid[TOP_BORDER][j] = '-';
@@ -330,14 +321,8 @@ int hasCrossedIntersection(Car *c) {
 
 int canMove(Car* c) {
     if (!c || !c->active) return 1;
-    
-    /* If car has crossed intersection, always allow movement */
     if (c->has_crossed) return 1;
-    
-    /* If car is in intersection, allow movement */
     if (isInIntersection(c->x, c->y)) return 1;
-    
-    /* Check if car is at stop line */
     if (isAtStopLine(c)) {
         if (c->dir == NORTH || c->dir == SOUTH) {
             return (nsLight.state != RED);
@@ -573,10 +558,10 @@ void displayMenu() {
     printf("||============================================================||\n");
     printf(COLOR_RESET "\n");
     printf(COLOR_MAGENTA "  Features:\n" COLOR_RESET);
-    printf("    1. Adaptive traffic light control\n2. Per-lane speed control (N-S / E-W)\n3. Live countdown to next light change\n4. Lane-change when congested (>5 cars)\n5. Pedestrian crossing with WALK/DON'T WALK signals\n6. Zebra crossing lines\n\n");
+    printf("1. Adaptive traffic light control\n2. Per-lane speed control (N-S / E-W)\n3. Live countdown to next light change\n4. Lane-change when congested (>5 cars)\n5. Pedestrian crossing with WALK/DON'T WALK signals\n6. Zebra crossing lines\n\n");
     printf(COLOR_GREEN "  MAIN MENU\n" COLOR_RESET);
     printf("  -----------------------------------------------\n\n");
-    printf("    1. Start Custom Simulation (set durations & speeds)\n2. Start Standard Simulation (60 seconds, defaults)\n3. Start Simulation with Lane-Change enabled\n4. Exit\n\n");
+    printf("1. Start Custom Simulation (set durations & speeds)\n2. Start Standard Simulation (60 seconds, defaults)\n3. Start Simulation with Lane-Change enabled\n4. Exit\n\n");
     printf("  -----------------------------------------------\n\n");
     printf("  Enter choice (1-4): ");
     fflush(stdout);
