@@ -438,9 +438,7 @@ void menu() {
     printf("||          TRAFFIC INTERSECTION SIMULATION SYSTEM            ||\n");
     printf("||============================================================||\n"RST"\n");
     printf(MAG"  Features:\n"RST);
-    printf("1. Adaptive traffic control\n2. Speed control (N-S/E-W)\n");
-    printf("3. Live countdown\n4. Lane-change (>5 cars)\n");
-    printf("5. Pedestrian crossing\n\n"GRN"  MENU\n"RST);
+    printf("1. Adaptive traffic control\n2. Speed control (N-S/E-W)\n3. Live countdown\n4. Lane-change (>5 cars)\n5. Pedestrian crossing\n\n"GRN"  MENU\n"RST);
     printf("  -----------------------------------------------\n\n");
     printf("1. Custom Simulation\n2. Standard (60s)\n3. With Lane-Change\n4. Exit\n\n");
     printf("  -----------------------------------------------\n\n  Choice (1-4): ");
