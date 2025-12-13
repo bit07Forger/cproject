@@ -1,53 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <windows.h>
+#include <conio.h>
 
-#ifdef _WIN32
-    #include <windows.h>
-    #include <conio.h>
-    #define SLEEP(ms) Sleep(ms)
-    #define KBHIT() _kbhit()
-    #define GETCH() _getch()
-#else
-    #include <unistd.h>
-    #include <termios.h>
-    #include <fcntl.h>
-    #define SLEEP(ms) usleep((ms)*1000)
-    
-    int kbhit() {
-        struct termios oldt, newt;
-        int ch, oldf;
-        tcgetattr(STDIN_FILENO, &oldt);
-        newt = oldt;
-        newt.c_lflag &= ~(ICANON | ECHO);
-        tcsetattr(STDIN_FILENO, TCSANOW, &newt);
-        oldf = fcntl(STDIN_FILENO, F_GETFL, 0);
-        fcntl(STDIN_FILENO, F_SETFL, oldf | O_NONBLOCK);
-        ch = getchar();
-        tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
-        fcntl(STDIN_FILENO, F_SETFL, oldf);
-        if(ch != EOF) {
-            ungetc(ch, stdin);
-            return 1;
-        }
-        return 0;
-    }
-    
-    int getch() {
-        struct termios oldt, newt;
-        int ch;
-        tcgetattr(STDIN_FILENO, &oldt);
-        newt = oldt;
-        newt.c_lflag &= ~(ICANON | ECHO);
-        tcsetattr(STDIN_FILENO, TCSANOW, &newt);
-        ch = getchar();
-        tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
-        return ch;
-    }
-    
-    #define KBHIT() kbhit()
-    #define GETCH() getch()
-#endif
+#define SLEEP(ms) Sleep(ms)
+#define KBHIT() _kbhit()
+#define GETCH() _getch()
 
 #define CLEAR "\033[2J\033[H"
 #define POS(r,c) printf("\033[%d;%dH",(r),(c))
@@ -439,9 +398,9 @@ void menu() {
     printf("||============================================================||\n"RST"\n");
     printf(MAG"  Features:\n"RST);
     printf("1. Adaptive traffic control\n2. Speed control (N-S/E-W)\n3. Live countdown\n4. Lane-change (>5 cars)\n5. Pedestrian crossing\n\n"GRN"  MENU\n"RST);
-    printf("  -----------------------------------------------\n\n");
+    printf("-----------------------------------------------\n-----------------------------------------------\n");
     printf("1. Custom Simulation\n2. Standard (60s)\n3. With Lane-Change\n4. Exit\n\n");
-    printf("  -----------------------------------------------\n\n  Choice (1-4): ");
+    printf("-----------------------------------------------\n-----------------------------------------------\n  Choice (1-4): ");
     fflush(stdout);
 }
 
