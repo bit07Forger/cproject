@@ -18,13 +18,13 @@
 #define MAG "\033[35m"
 #define RST "\033[0m"
 
-#define W 80
-#define H 24
-#define IX 40
-#define IY 12
-#define NS_W 6
-#define EW_W 4
-#define L_BORDER (IX-NS_W/2)
+#define W 80 // width of the 2d array representing the grid 
+#define H 24 // height of the 2d array representing the grid
+#define IX 40 //center of the x cooridinate of 2d array that is defined by w and h 
+#define IY 12 // center of the y coordinate of 2d array that is defined by w and h
+#define NS_W 8 //north south road width 
+#define EW_W 4//east west road width
+#define L_BORDER (IX-NS_W/2) 
 #define R_BORDER (IX+NS_W/2-1)
 #define T_BORDER (IY-EW_W/2)
 #define B_BORDER (IY+EW_W/2-1)
@@ -36,10 +36,12 @@ typedef enum {RED_L,YEL_L,GRN_L} LightState;
 typedef enum {NORTH,SOUTH,EAST,WEST} Dir;
 typedef enum {DONT_WALK,WALK} PedSignal;
 
+const char* dir_names[] = {"NORTH", "SOUTH", "EAST", "WEST"};
+
 typedef struct {
-    int x,y,active,crossed;
+    int x,y,active,crossed; //x,y are being used as coordintes on the grid 
     Dir dir;
-    char sym;
+    char sym; // to represent the car on the grid 
 } Car;
 
 typedef struct {
@@ -50,7 +52,7 @@ typedef struct {
 
 typedef struct {
     LightState state;
-    int timer,g,y,r;
+    int timer,g,y,r; // timer count downs for each light state 
 } Light;
 
 Car cars[MAX_CARS];
@@ -62,8 +64,8 @@ int ns_interval=3,ew_interval=3,lane_change=0;
 char lc_msg[100]="";
 int lc_ticks=0;
 
-void initGrid() {
-    for(int i=0;i<H;i++)
+void initGrid() {   // setup for clear screen 
+    for(int i=0;i<H;i++)      
         for(int j=0;j<W;j++)
             grid[i][j]=' ';
     
@@ -75,66 +77,63 @@ void initGrid() {
         grid[i][L_BORDER]='|';
         grid[i][R_BORDER]='|';
     }
-    grid[T_BORDER][L_BORDER]=grid[T_BORDER][R_BORDER]='+';
+    grid[T_BORDER][L_BORDER]=grid[T_BORDER][R_BORDER]='+'; // draws the intersection 
     grid[B_BORDER][L_BORDER]=grid[B_BORDER][R_BORDER]='+';
-    
-    for(int j=L_BORDER;j<=R_BORDER;j++)
-        if(grid[IY][j]==' ') grid[IY][j]='-';
     
     int y1=T_BORDER-2,y2=B_BORDER+2,x1=L_BORDER-2,x2=R_BORDER+2;
     for(int j=L_BORDER;j<=R_BORDER;j++) {
-        if(grid[y1][j]==' ') grid[y1][j]=(j%2?' ':':');
-        if(grid[y2][j]==' ') grid[y2][j]=(j%2?' ':':');
+        if(grid[y1][j]==' ') grid[y1][j]=(j%2?' ':':'); // road markings
+        if(grid[y2][j]==' ') grid[y2][j]=(j%2?' ':':'); 
     }
     for(int i=T_BORDER;i<=B_BORDER;i++) {
-        if(grid[i][x1]==' ') grid[i][x1]=(i%2?' ':':');
+        if(grid[i][x1]==' ') grid[i][x1]=(i%2?' ':':'); // road markings
         if(grid[i][x2]==' ') grid[i][x2]=(i%2?' ':':');
     }
 }
 
 void drawGrid() {
-    POS(1,1);
+    POS(1,1); // moves the cursor to the top left corner 
     for(int i=0;i<H;i++) {
-        fwrite(grid[i],1,W,stdout);
+        fwrite(grid[i],1,W,stdout); // writes 80 characters from grid to s
         putchar('\n');
     }
 }
 
 void initLights() {
-    nsLight=(Light){GRN_L,50,50,10,50};
-    ewLight=(Light){RED_L,50,50,10,50};
+    nsLight=(Light){GRN_L,50,50,10,50}; // initial state of the north south lights is green 
+    ewLight=(Light){RED_L,50,50,10,50}; // opposite for east west lights to avoid collision 
 }
 
-void updateLight(Light *t) {
-    if(--t->timer>0) return;
-    if(t->state==GRN_L) {t->state=YEL_L;t->timer=t->y;}
-    else if(t->state==YEL_L) {t->state=RED_L;t->timer=t->r;}
-    else {t->state=GRN_L;t->timer=t->g;}
+void updateLight(Light *t) { // for updating the traffic lights green=5secs yellow=1sec red =5secs 
+    if(--t->timer>0) return; // first subtracts one from the timer and then checks if its greater than zero 
+    if(t->state==GRN_L) {t->state=YEL_L;t->timer=t->y;} // if greeen light times out then change to yellow and then set the timer to yellow 
+    else if(t->state==YEL_L) {t->state=RED_L;t->timer=t->r;} // if yellow light times out then change to the red and set the timer to red 
+    else {t->state=GRN_L;t->timer=t->g;} // if red light times out then change to green and set the timer to green 
 }
 
 int countCars(Dir d) {
     int c=0;
-    for(int i=0;i<MAX_CARS;i++)
-        if(cars[i].active&&cars[i].dir==d) c++;
-    return c;
+    for(int i=0;i<MAX_CARS;i++) // counts the number of cars in a particular direction 
+        if(cars[i].active&&cars[i].dir==d) c++; // increments the count if the car is active and in the specified direction 
+    return c; // returns the count of the cars in that direction 
 }
 
 void adaptiveControl() {
-    int ns=countCars(NORTH)+countCars(SOUTH);
-    int ew=countCars(EAST)+countCars(WEST);
+    int ns=countCars(NORTH)+countCars(SOUTH); // uses the above function to count the number of cars in north south dirn  
+    int ew=countCars(EAST)+countCars(WEST); // uses the above function to count the number pf cars in east west dirn 
     
     if(nsLight.state==GRN_L&&nsLight.timer==nsLight.g) {
-        if(ns>ew+3) {nsLight.g=80;ewLight.g=50;}
-        else if(ew>ns+3) {ewLight.g=80;nsLight.g=50;}
+        if(ns>ew+3) {nsLight.g=80;ewLight.g=50;} // if there are more cars in n-s dirn then increase the green light time to 8 secs and the e-w light remains default 
+        else if(ew>ns+3) {ewLight.g=80;nsLight.g=50;} //if there are more cars in e-w dirn then increase the green light time to 8 secs and the n-s light remains default
         else {nsLight.g=ewLight.g=50;}
-        if(nsLight.g<20) nsLight.g=20;
-        if(ewLight.g<20) ewLight.g=20;
+        if(nsLight.g<20) nsLight.g=20; // minimum green light time is 2 secs 
+        if(ewLight.g<20) ewLight.g=20; // minimum green light time is 2 secs
     }
 }
 
 void updatePedSignals() {
-    ns_ped=(nsLight.state==RED_L)?WALK:DONT_WALK;
-    ew_ped=(ewLight.state==RED_L)?WALK:DONT_WALK;
+    ns_ped=(nsLight.state==RED_L)?WALK:DONT_WALK; // if the north south light is red then pedestrians can walk otherwise they cant 
+    ew_ped=(ewLight.state==RED_L)?WALK:DONT_WALK; // if the east west light is red then pedestrians can walk otherwise they cant 
 }
 
 void drawLights() {
@@ -176,11 +175,11 @@ void drawLights() {
 
 void initCars() {
     for(int i=0;i<MAX_CARS;i++)
-        cars[i].active=cars[i].crossed=0;
+        cars[i].active=cars[i].crossed=0; // creates inactive cars 20 in number ready to be spawned 
 }
 
 void initPeds() {
-    for(int i=0;i<MAX_PEDS;i++)
+    for(int i=0;i<MAX_PEDS;i++) // creates inactive pedestrians 10 in number ready to be spawned 
         peds[i].active=0;
 }
 
@@ -214,10 +213,13 @@ int canMove(Car *c) {
     return 1;
 }
 
-int isOccupied(int x,int y,int skip) {
+int isOccupied(int x,int y,int skip) { // checks if the position is already occupied or not except for itslef 
     for(int i=0;i<MAX_CARS;i++)
-        if(i!=skip&&cars[i].active&&cars[i].x==x&&cars[i].y==y) return 1;
-    return 0;
+        if(i!=skip //dont check itself 
+            &&cars[i].active // car is active 
+            &&cars[i].x==x&& // x cooriddinate is the same 
+            cars[i].y==y) return 1; // y coordinate is the same 
+    return 0; // returns 0 if the position is not occupied and 1 if it is occupied 
 }
 
 int pedAt(int x,int y) {
@@ -250,24 +252,24 @@ void drawPed(Ped *p,int erase) {
     erase?putchar(grid[p->y][p->x]):printf(CYN"%c"RST,p->sym);
 }
 
-void spawnCar() {
-    int s=-1;
-    for(int i=0;i<MAX_CARS;i++)
-        if(!cars[i].active) {s=i;break;}
-    if(s<0) return;
+void spawnCar() {  // spawns a car at random direction 
+    int s=-1; // not found marker 
+    for(int i=0;i<MAX_CARS;i++) // checks for all the 20 slots for anny empty places 
+        if(!cars[i].active) {s=i;break;} // remembers the slot index and exits the loop 
+    if(s<0) return; // checks if found otherwise exits spawning 
     
-    Car *c=&cars[s];
-    c->active=1;
+    Car *c=&cars[s]; // pointer to the car slot 
+    c->active=1; // -> is the arrow operator used instead of . for accesing struct memebers with pointers 
     c->crossed=0;
-    c->dir=rand()%4;
-    
+    c->dir=rand()%4; // used to give the values 0 1 2 3 because (rand no.)%4 never exceed 3 as the range of the value is 0 to m-1
+    // 25% chance for each direction 
     switch(c->dir) {
-        case NORTH:c->x=L_BORDER+2;c->y=H-2;c->sym='^';break;
-        case SOUTH:c->x=R_BORDER-2;c->y=1;c->sym='v';break;
-        case EAST:c->x=1;c->y=B_BORDER-1;c->sym='>';break;
-        case WEST:c->x=W-2;c->y=T_BORDER+1;c->sym='<';break;
+        case NORTH:c->x=L_BORDER+2;c->y=H-2;c->sym='^';break; // spawns at the position (39,22) and sets the symbol for the car spwaning 
+        case SOUTH:c->x=R_BORDER-2;c->y=1;c->sym='v';break;// spawns at position (40,1)
+        case EAST:c->x=1;c->y=B_BORDER-1;c->sym='>';break;// spawns at position (1,13)
+        case WEST:c->x=W-2;c->y=T_BORDER+1;c->sym='<';break;// spawns at position (78,12)
     }
-    if(isOccupied(c->x,c->y,s)) c->active=0;
+    if(isOccupied(c->x,c->y,s)) c->active=0;  // if the spawn point is occupies then deactivate the car 
 }
 
 void spawnPed() {
@@ -361,20 +363,22 @@ void updateCars(int tick) {
             if(lane_change&&countCars(c->dir)>5) {
                 int sw=0;
                 if(c->dir==NORTH||c->dir==SOUTH) {
-                    if(c->x>0&&!isOccupied(c->x-1,c->y,i)) {
+                    int dy = (c->dir == NORTH) ? -1 : 1;
+                    if(c->x>0 && c->x-1 >= L_BORDER && c->y + dy >= 0 && c->y + dy < H && !isOccupied(c->x-1,c->y,i)) {
                         drawCar(c,1);c->x--;drawCar(c,0);sw=1;
-                        snprintf(lc_msg,100,"Car %d lane LEFT",i);lc_ticks=20;
-                    } else if(c->x<W-1&&!isOccupied(c->x+1,c->y,i)) {
+                        snprintf(lc_msg,100,"Car %d (%s) lane LEFT",i,dir_names[c->dir]);lc_ticks=20;
+                    } else if(c->x<W-1 && c->x+1 <= R_BORDER && c->y + dy >= 0 && c->y + dy < H && !isOccupied(c->x+1,c->y,i)) {
                         drawCar(c,1);c->x++;drawCar(c,0);sw=1;
-                        snprintf(lc_msg,100,"Car %d lane RIGHT",i);lc_ticks=20;
+                        snprintf(lc_msg,100,"Car %d (%s) lane RIGHT",i,dir_names[c->dir]);lc_ticks=20;
                     }
                 } else {
-                    if(c->y>0&&!isOccupied(c->x,c->y-1,i)) {
+                    int dx = (c->dir == EAST) ? 1 : -1;
+                    if(c->y>0 && c->y-1 >= T_BORDER && c->x + dx >= 0 && c->x + dx < W && !isOccupied(c->x,c->y-1,i)) {
                         drawCar(c,1);c->y--;drawCar(c,0);sw=1;
-                        snprintf(lc_msg,100,"Car %d lane UP",i);lc_ticks=20;
-                    } else if(c->y<H-1&&!isOccupied(c->x,c->y+1,i)) {
+                        snprintf(lc_msg,100,"Car %d (%s) lane LEFT",i,dir_names[c->dir]);lc_ticks=20;
+                    } else if(c->y<H-1 && c->y+1 <= B_BORDER && c->x + dx >= 0 && c->x + dx < W && !isOccupied(c->x,c->y+1,i)) {
                         drawCar(c,1);c->y++;drawCar(c,0);sw=1;
-                        snprintf(lc_msg,100,"Car %d lane DOWN",i);lc_ticks=20;
+                        snprintf(lc_msg,100,"Car %d (%s) lane RIGHT",i,dir_names[c->dir]);lc_ticks=20;
                     }
                 }
                 if(sw) continue;
@@ -399,7 +403,7 @@ void menu() {
     printf(MAG"  Features:\n"RST);
     printf("1. Adaptive traffic control\n2. Speed control (N-S/E-W)\n3. Live countdown\n4. Lane-change (>5 cars)\n5. Pedestrian crossing\n\n"GRN"  MENU\n"RST);
     printf("-----------------------------------------------\n-----------------------------------------------\n");
-    printf("1. Custom Simulation\n2. Standard (60s)\n3. With Lane-Change\n4. Exit\n\n");
+    printf("1. Custom Simulation\n2. Standard (60s)\n3. Lane-Change Simulation\n4. Exit\n\n");
     printf("-----------------------------------------------\n-----------------------------------------------\n  Choice (1-4): ");
     fflush(stdout);
 }
@@ -413,7 +417,7 @@ void run(int dur) {
     drawGrid();
     int f=dur*10,t=0,paused=0;
     while(f>0) {
-        if(KBHIT()) {
+        if(KBHIT()) {           // checks for user input 
             char c=GETCH();
             if(c=='p'||c=='P') {
                 paused=!paused;
@@ -427,13 +431,13 @@ void run(int dur) {
         if(!paused) {
             t++;
             f--;
-            updateLight(&nsLight);
-            updateLight(&ewLight);
+            updateLight(&nsLight);  // check timer and update light states 
+            updateLight(&ewLight); // check timer and update light states
             drawLights();
-            if(f%10==0) spawnCar();
-            if(f%15==0) spawnPed();
-            updateCars(t);
-            updatePeds(t);
+            if(f%10==0) spawnCar();  // spawn a car every second that is every 10 ticks 
+            if(f%15==0) spawnPed(); // spawn a pedestrian every 1.5 seconds 
+            updateCars(t); // move the cars on the grid 
+            updatePeds(t); // show the pedestrians on the grid  
         }
         fflush(stdout);
         SLEEP(100);
@@ -446,19 +450,19 @@ int main() {
     srand(time(NULL));
     int ch,dur;
     double ns,ew;
-    while(1) {
+    while(1) { // while 1 because we wna the menu to keep apppering continously until the user enters 4 to exit 
         menu();
         scanf("%d",&ch);
         if(ch==1) {
             printf("\nDuration (1-300): ");
             scanf("%d",&dur);
-            if(dur<1) dur=1;
+            if(dur<1) dur=1; // keeps the range valid 
             if(dur>300) dur=300;
-            printf("N-S speed (cells/s, 0=default): ");
+            printf("N-S speed (cells/s, default=3.3): ");
             scanf("%lf",&ns);
-            printf("E-W speed (cells/s, 0=default): ");
+            printf("E-W speed (cells/s, default=3.3): ");
             scanf("%lf",&ew);
-            ns_interval=(ns>0)?(int)(10.0/ns+0.5):3;
+            ns_interval=(ns>0)?(int)(10.0/ns+0.5):3; // using ternary operator to set speed intervals 
             ew_interval=(ew>0)?(int)(10.0/ew+0.5):3;
             if(ns_interval<1) ns_interval=1;
             if(ew_interval<1) ew_interval=1;
@@ -466,17 +470,17 @@ int main() {
             scanf("%d",&lane_change);
             run(dur);
         } else if(ch==2) {
-            ns_interval=ew_interval=3;
-            lane_change=0;
+            ns_interval=ew_interval=3; // default speed 
+            lane_change=0; // lane change disbled 
             run(60);
         } else if(ch==3) {
             printf("\nDuration (1-300): ");
             scanf("%d",&dur);
             if(dur<1) dur=1;
             if(dur>300) dur=300;
-            printf("N-S speed (0=default): ");
+            printf("N-S speed (default=3.3): ");
             scanf("%lf",&ns);
-            printf("E-W speed (0=default): ");
+            printf("E-W speed (default=3.3): ");
             scanf("%lf",&ew);
             ns_interval=(ns>0)?(int)(10.0/ns+0.5):3;
             ew_interval=(ew>0)?(int)(10.0/ew+0.5):3;
