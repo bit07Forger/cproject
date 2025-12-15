@@ -1,16 +1,16 @@
 #include <stdio.h>
-#include <stdlib.h>
-#include <time.h>
-#include <windows.h>
+#include <stdlib.h> // for funtions like srand in the function 
+#include <time.h> // get the current system time 
+#include <windows.h> // for the delays in milliseconds 
 #include <conio.h>
 
 #define SLEEP(ms) Sleep(ms)
 #define KBHIT() _kbhit()
 #define GETCH() _getch()
 
-#define CLEAR "\033[2J\033[H"
-#define POS(r,c) printf("\033[%d;%dH",(r),(c))
-#define RED "\033[31m"
+#define CLEAR "\033[2J\033[H"                   //ANSI escape code for clearing screen 
+#define POS(r,c) printf("\033[%d;%dH",(r),(c))  // for getting the positions (rows,colums)
+#define RED "\033[31m"  // for the colors in the terminals 
 #define YEL "\033[33m"
 #define GRN "\033[32m"
 #define BLU "\033[34m"
@@ -24,13 +24,13 @@
 #define IY 12 // center of the y coordinate of 2d array that is defined by w and h
 #define NS_W 8 //north south road width 
 #define EW_W 4//east west road width
-#define L_BORDER (IX-NS_W/2) 
-#define R_BORDER (IX+NS_W/2-1)
-#define T_BORDER (IY-EW_W/2)
-#define B_BORDER (IY+EW_W/2-1)
-#define MAX_CARS 20
-#define MAX_PEDS 10
-#define PED_INTERVAL 4
+#define L_BORDER (IX-NS_W/2) // calculates the left border 
+#define R_BORDER (IX+NS_W/2-1) // calculates the right border 
+#define T_BORDER (IY-EW_W/2) // calculates the top border 
+#define B_BORDER (IY+EW_W/2-1) // calculates the bottom border 
+#define MAX_CARS 20 // maximum no.of cars 
+#define MAX_PEDS 10 // maximum no.of pedestrians 
+#define PED_INTERVAL 4 // movement intervals of the pedestrians  
 
 typedef enum {RED_L,YEL_L,GRN_L} LightState;
 typedef enum {NORTH,SOUTH,EAST,WEST} Dir;
@@ -187,17 +187,17 @@ int inIntersection(int x,int y) {
     return x>=L_BORDER&&x<=R_BORDER&&y>=T_BORDER&&y<=B_BORDER;
 }
 
-int atStopLine(Car *c) {
+int atStopLine(Car *c) { 
     if(!c->active) return 0;
-    if(c->dir==NORTH) return c->y==B_BORDER+1;
-    if(c->dir==SOUTH) return c->y==T_BORDER-1;
+    if(c->dir==NORTH) return c->y==B_BORDER+1; // checks if the car is at the stop line based on the direction it was moving initially 
+    if(c->dir==SOUTH) return c->y==T_BORDER-1; 
     if(c->dir==EAST) return c->x==L_BORDER-1;
     if(c->dir==WEST) return c->x==R_BORDER+1;
     return 0;
 }
 
-int hasCrossed(Car *c) {
-    if(c->dir==NORTH) return c->y<T_BORDER;
+int hasCrossed(Car *c) { // checks whether the car has already crossed the intersection so that it can stop checking for the light signals 
+    if(c->dir==NORTH) return c->y<T_BORDER; 
     if(c->dir==SOUTH) return c->y>B_BORDER;
     if(c->dir==EAST) return c->x>R_BORDER;
     if(c->dir==WEST) return c->x<L_BORDER;
@@ -205,9 +205,10 @@ int hasCrossed(Car *c) {
 }
 
 int canMove(Car *c) {
-    if(!c->active||c->crossed||inIntersection(c->x,c->y)) return 1;
-    if(atStopLine(c)) {
-        if(c->dir==NORTH||c->dir==SOUTH) return nsLight.state!=RED_L;
+    if(!c->active||c->crossed||inIntersection(c->x,c->y)) return 1; // inactive car , already crossed, at the intersection then no need to check already committed 
+    if(atStopLine(c)) { 
+        if(c->dir==NORTH||c->dir==SOUTH) 
+        return nsLight.state!=RED_L; // can move if not red 
         return ewLight.state!=RED_L;
     }
     return 1;
@@ -222,9 +223,9 @@ int isOccupied(int x,int y,int skip) { // checks if the position is already occu
     return 0; // returns 0 if the position is not occupied and 1 if it is occupied 
 }
 
-int pedAt(int x,int y) {
-    for(int i=0;i<MAX_PEDS;i++)
-        if(peds[i].active&&peds[i].x==x&&peds[i].y==y) return 1;
+int pedAt(int x,int y) { // takes the coordinates of the cars next movement as the input 
+    for(int i=0;i<MAX_PEDS;i++) // checks whether the position is already occupied by the pedestrian or not 
+        if(peds[i].active&&peds[i].x==x&&peds[i].y==y) return 1; // if true then the car cannot move further 
     return 0;
 }
 
@@ -234,15 +235,15 @@ int carAt(int x,int y) {
     return 0;
 }
 
-void drawCar(Car *c,int erase) {
+void drawCar(Car *c,int erase) {  // erase can be either 0 or 1 
     if(c->y<0||c->y>=H||c->x<0||c->x>=W) return;
-    POS(c->y+1,c->x+1);
-    if(erase) putchar(grid[c->y][c->x]);
-    else {
-        if(atStopLine(c)) printf(YEL"%c"RST,c->sym);
-        else if(inIntersection(c->x,c->y)) printf(GRN"%c"RST,c->sym);
-        else if(c->crossed) printf(CYN"%c"RST,c->sym);
-        else printf(BLU"%c"RST,c->sym);
+    POS(c->y+1,c->x+1); // moves the cursor 
+    if(erase) putchar(grid[c->y][c->x]); // clear the background  
+    else { // 
+        if(atStopLine(c)) printf(YEL"%c"RST,c->sym); // if at the stop light then turns yellow 
+        else if(inIntersection(c->x,c->y)) printf(GRN"%c"RST,c->sym); // print in green when at the intersection 
+        else if(c->crossed) printf(CYN"%c"RST,c->sym);// cyan when the car has crossed 
+        else printf(BLU"%c"RST,c->sym); // blue if in the lanes in travel 
     }
 }
 
@@ -340,30 +341,30 @@ void updatePeds(int tick) {
 }
 
 void updateCars(int tick) {
-    for(int i=0;i<MAX_CARS;i++) {
-        Car *c=&cars[i];
-        if(!c->active) continue;
+    for(int i=0;i<MAX_CARS;i++) { // checks for all the 20 cars 
+        Car *c=&cars[i]; // gets the pointer to the car slot 
+        if(!c->active) continue; //if the car is not active then skip to the next car 
         
-        int iv=(c->dir==NORTH||c->dir==SOUTH)?ns_interval:ew_interval;
-        if(iv>1&&tick%iv) {drawCar(c,0);continue;}
+        int iv=(c->dir==NORTH||c->dir==SOUTH)?ns_interval:ew_interval; // gets the speed intervals based on the direction of the car as entered by the user 
+        if(iv>1&&tick%iv) {drawCar(c,0);continue;} // if the interval is greater than 1 and the tick is not a multiple of the interval then skip to the next car 
+        // controls how often the car moves showing the diffrent speeds 
+        int nx=c->x,ny=c->y; // starts with the current x an dy position 
+        if(c->dir==NORTH) ny--; // for moving up the y coordinated decreases 
+        else if(c->dir==SOUTH) ny++; // for moving south the y coordinate increases 
+        else if(c->dir==EAST) nx++; // for moving east the x coordinate increases 
+        else nx--; // for moving west the x coordinate decreases 
         
-        int nx=c->x,ny=c->y;
-        if(c->dir==NORTH) ny--;
-        else if(c->dir==SOUTH) ny++;
-        else if(c->dir==EAST) nx++;
-        else nx--;
-        
-        if(nx<0||nx>=W||ny<0||ny>=H) {
-            drawCar(c,1);
-            c->active=0;
-            continue;
+        if(nx<0||nx>=W||ny<0||ny>=H) {  // maintains the boundary conditions for the grid 
+            drawCar(c,1); 
+            c->active=0; // if the car moves out of the grid then deactivate it and remove it from the grid 
+            continue; //
         }
         
-        if(!canMove(c)||isOccupied(nx,ny,i)||pedAt(nx,ny)) {
-            if(lane_change&&countCars(c->dir)>5) {
-                int sw=0;
-                if(c->dir==NORTH||c->dir==SOUTH) {
-                    int dy = (c->dir == NORTH) ? -1 : 1;
+        if(!canMove(c)||isOccupied(nx,ny,i)||pedAt(nx,ny)) { // checks for the following : traffic light, pedestrian, already occupied 
+            if(lane_change&&countCars(c->dir)>5) { // when either option 3 is choosen or option 1 choosen and the car in that direction are more than 5 
+                int sw=0; // flag variable for the switching 
+                if(c->dir==NORTH||c->dir==SOUTH) { // vertical movement 
+                    int dy = (c->dir == NORTH) ? -1 : 1; 
                     if(c->x>0 && c->x-1 >= L_BORDER && c->y + dy >= 0 && c->y + dy < H && !isOccupied(c->x-1,c->y,i)) {
                         drawCar(c,1);c->x--;drawCar(c,0);sw=1;
                         snprintf(lc_msg,100,"Car %d (%s) lane LEFT",i,dir_names[c->dir]);lc_ticks=20;
@@ -458,9 +459,9 @@ int main() {
             scanf("%d",&dur);
             if(dur<1) dur=1; // keeps the range valid 
             if(dur>300) dur=300;
-            printf("N-S speed (cells/s, default=3.3): ");
+            printf("N-S speed (cells/s, default=3 range: 3-10): ");
             scanf("%lf",&ns);
-            printf("E-W speed (cells/s, default=3.3): ");
+            printf("E-W speed (cells/s, default=3 range 3-10): "); // max speed of the car is 10 because the of the grid size 
             scanf("%lf",&ew);
             ns_interval=(ns>0)?(int)(10.0/ns+0.5):3; // using ternary operator to set speed intervals 
             ew_interval=(ew>0)?(int)(10.0/ew+0.5):3;
