@@ -401,7 +401,7 @@ void menu() {
     printf("||============================================================||\n");
     printf("||          TRAFFIC INTERSECTION SIMULATION SYSTEM            ||\n");
     printf("||============================================================||\n"RST"\n");
-    printf(MAG"  Features:\n"RST);
+    printf(MAG"  Features:\n"RST); //MAG-color RST-reset the colours. 
     printf("1. Adaptive traffic control\n2. Speed control (N-S/E-W)\n3. Live countdown\n4. Lane-change (>5 cars)\n5. Pedestrian crossing\n\n"GRN"  MENU\n"RST);
     printf("-----------------------------------------------\n-----------------------------------------------\n");
     printf("1. Custom Simulation\n2. Standard (60s)\n3. Lane-Change Simulation\n4. Exit\n\n");
@@ -449,7 +449,7 @@ void run(int dur) {
 }
 
 int main() {
-    srand(time(NULL));
+    srand(time(NULL));//Here time(NULL) gets current time in seconds. And srand() is used for randum number generator.
     int ch,dur;
     double ns,ew;
     while(1) { // while 1 because we wna the menu to keep apppering continously until the user enters 4 to exit 
