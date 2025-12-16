@@ -17,7 +17,7 @@
 #define CYN "\033[36m"
 #define MAG "\033[35m"
 #define RST "\033[0m"
-
+  // defining all the contants 
 #define W 80 // width of the 2d array representing the grid 
 #define H 24 // height of the 2d array representing the grid
 #define IX 40 //center of the x cooridinate of 2d array that is defined by w and h 
@@ -32,62 +32,62 @@
 #define MAX_PEDS 10 // maximum no.of pedestrians 
 #define PED_INTERVAL 4 // movement intervals of the pedestrians  
 
-typedef enum {RED_L,YEL_L,GRN_L} LightState;
-typedef enum {NORTH,SOUTH,EAST,WEST} Dir;
-typedef enum {DONT_WALK,WALK} PedSignal;
+typedef enum {RED_L,YEL_L,GRN_L} LightState; // traffic light states: red, yellow, green
+typedef enum {NORTH,SOUTH,EAST,WEST} Dir; // directions: north, south, east, west
+typedef enum {DONT_WALK,WALK} PedSignal; // pedestrian signals: don't walk, walk
 
-const char* dir_names[] = {"NORTH", "SOUTH", "EAST", "WEST"};
-
+const char* dir_names[] = {"NORTH", "SOUTH", "EAST", "WEST"}; // string names for directions
+// defining the structures for all the entities 
 typedef struct {
     int x,y,active,crossed; //x,y are being used as coordintes on the grid 
-    Dir dir;
-    char sym; // to represent the car on the grid 
+    Dir dir; // direction of the car
+    char sym; // to represent the car 
 } Car;
 
 typedef struct {
     int x,y,active;
-    Dir dir;
-    char sym;
+    Dir dir; // direction of the pedestrian
+    char sym; // symbol for pedestrian
 } Ped;
 
 typedef struct {
-    LightState state;
+    LightState state; // current light state
     int timer,g,y,r; // timer count downs for each light state 
 } Light;
 
-Car cars[MAX_CARS];
-Ped peds[MAX_PEDS];
-char grid[H][W];
-Light nsLight,ewLight;
-PedSignal ns_ped,ew_ped;
-int ns_interval=3,ew_interval=3,lane_change=0;
-char lc_msg[100]="";
-int lc_ticks=0;
+Car cars[MAX_CARS]; // array to hold all cars
+Ped peds[MAX_PEDS]; // array to hold all pedestrians
+char grid[H][W]; // 2D grid representing the road and intersection
+Light nsLight,ewLight; // traffic lights for north-south and east-west
+PedSignal ns_ped,ew_ped; // pedestrian signals for north-south and east-west
+int ns_interval=3,ew_interval=3,lane_change=0; // speed intervals and lane change flag
+char lc_msg[100]=""; // lane change message buffer
+int lc_ticks=0; // ticks to display lane change message
 
 void initGrid() {   // setup for clear screen 
     for(int i=0;i<H;i++)      
         for(int j=0;j<W;j++)
-            grid[i][j]=' ';
+            grid[i][j]=' '; // initialize all grid cells to space
     
     for(int j=0;j<W;j++) {
-        grid[T_BORDER][j]='-';
-        grid[B_BORDER][j]='-';
+        grid[T_BORDER][j]='-'; // draw top border
+        grid[B_BORDER][j]='-'; // draw bottom border
     }
     for(int i=0;i<H;i++) {
-        grid[i][L_BORDER]='|';
-        grid[i][R_BORDER]='|';
+        grid[i][L_BORDER]='|'; // draw left border
+        grid[i][R_BORDER]='|'; // draw right border
     }
-    grid[T_BORDER][L_BORDER]=grid[T_BORDER][R_BORDER]='+'; // draws the intersection 
-    grid[B_BORDER][L_BORDER]=grid[B_BORDER][R_BORDER]='+';
+    grid[T_BORDER][L_BORDER]=grid[T_BORDER][R_BORDER]='+'; // draw top-left and top-right corners
+    grid[B_BORDER][L_BORDER]=grid[B_BORDER][R_BORDER]='+'; // draw bottom-left and bottom-right corners
     
-    int y1=T_BORDER-2,y2=B_BORDER+2,x1=L_BORDER-2,x2=R_BORDER+2;
+    int y1=T_BORDER-2,y2=B_BORDER+2,x1=L_BORDER-2,x2=R_BORDER+2; // calculate zebra line positions
     for(int j=L_BORDER;j<=R_BORDER;j++) {
-        if(grid[y1][j]==' ') grid[y1][j]=(j%2?' ':':'); // road markings
-        if(grid[y2][j]==' ') grid[y2][j]=(j%2?' ':':'); 
+        if(grid[y1][j]==' ') grid[y1][j]=(j%2?' ':':'); // draw zebra lines above intersection
+        if(grid[y2][j]==' ') grid[y2][j]=(j%2?' ':':'); // draw zebra lines below intersection
     }
     for(int i=T_BORDER;i<=B_BORDER;i++) {
-        if(grid[i][x1]==' ') grid[i][x1]=(i%2?' ':':'); // road markings
-        if(grid[i][x2]==' ') grid[i][x2]=(i%2?' ':':');
+        if(grid[i][x1]==' ') grid[i][x1]=(i%2?' ':':'); // draw zebra lines left of intersection
+        if(grid[i][x2]==' ') grid[i][x2]=(i%2?' ':':'); // draw zebra lines right of intersection
     }
 }
 
@@ -112,7 +112,7 @@ void updateLight(Light *t) { // for updating the traffic lights green=5secs yell
 }
 
 int countCars(Dir d) {
-    int c=0;
+    int c=0; // initialize count
     for(int i=0;i<MAX_CARS;i++) // counts the number of cars in a particular direction 
         if(cars[i].active&&cars[i].dir==d) c++; // increments the count if the car is active and in the specified direction 
     return c; // returns the count of the cars in that direction 
@@ -137,40 +137,40 @@ void updatePedSignals() {
 }
 
 void drawLights() {
-    adaptiveControl();
-    updatePedSignals();
+    adaptiveControl(); // update adaptive control
+    updatePedSignals(); // update pedestrian signals
     
-    int ns=countCars(NORTH)+countCars(SOUTH);
-    int ew=countCars(EAST)+countCars(WEST);
+    int ns=countCars(NORTH)+countCars(SOUTH); // count north-south cars
+    int ew=countCars(EAST)+countCars(WEST); // count east-west cars
     
-    POS(H+2,1);
+    POS(H+2,1); // position for north-south light display
     printf("N-S: ");
     printf(nsLight.state==RED_L?RED"RED   "RST:
-           nsLight.state==YEL_L?YEL"YELLOW"RST:GRN"GREEN "RST);
-    printf("  (%.1fs)   Density:%d/%d          ",nsLight.timer/10.0,ns,MAX_CARS);
+           nsLight.state==YEL_L?YEL"YELLOW"RST:GRN"GREEN "RST); // display light color
+    printf("  (%.1fs)   Density:%d/%d          ",nsLight.timer/10.0,ns,MAX_CARS); // display timer and density
 
-    POS(H+3,1);
+    POS(H+3,1); // position for east-west light display
     printf("E-W: ");
     printf(ewLight.state==RED_L?RED"RED   "RST:
-           ewLight.state==YEL_L?YEL"YELLOW"RST:GRN"GREEN "RST);
-    printf("  (%.1fs)   Density:%d/%d          ",ewLight.timer/10.0,ew,MAX_CARS);
+           ewLight.state==YEL_L?YEL"YELLOW"RST:GRN"GREEN "RST); // display light color
+    printf("  (%.1fs)   Density:%d/%d          ",ewLight.timer/10.0,ew,MAX_CARS); // display timer and density
 
-    POS(H+4,1);
+    POS(H+4,1); // position for speed display
     printf("Speed - N-S:%.2f E-W:%.2f cells/s                    ",
-           10.0/ns_interval,10.0/ew_interval);
+           10.0/ns_interval,10.0/ew_interval); // display speeds
     
-    POS(H+5,1);
+    POS(H+5,1); // position for pedestrian signals
     printf("N-S Ped:");
-    printf(ns_ped==WALK?GRN"WALK   "RST:RED"DON'T WALK"RST);
+    printf(ns_ped==WALK?GRN"WALK   "RST:RED"DON'T WALK"RST); // display north-south pedestrian signal
     printf("  E-W Ped:");
-    printf(ew_ped==WALK?GRN"WALK   "RST:RED"DON'T WALK"RST);
-    printf("  [Press 'p' to pause]     ");
+    printf(ew_ped==WALK?GRN"WALK   "RST:RED"DON'T WALK"RST); // display east-west pedestrian signal
+    printf("  [Press 'p' to pause]     "); // pause instruction
     
-    POS(H+6,1);
+    POS(H+6,1); // position for lane change message
     if(lc_ticks>0) {
-        printf("[LANE CHANGE] %s                              ",lc_msg);
-        lc_ticks--;
-    } else printf("                                                                ");
+        printf("[LANE CHANGE] %s                              ",lc_msg); // display lane change message
+        lc_ticks--; // decrement ticks
+    } else printf("                                                                "); // clear line
 }
 
 void initCars() {
@@ -180,20 +180,20 @@ void initCars() {
 
 void initPeds() {
     for(int i=0;i<MAX_PEDS;i++) // creates inactive pedestrians 10 in number ready to be spawned 
-        peds[i].active=0;
+        peds[i].active=0; // set active to 0
 }
 
 int inIntersection(int x,int y) {
-    return x>=L_BORDER&&x<=R_BORDER&&y>=T_BORDER&&y<=B_BORDER;
+    return x>=L_BORDER&&x<=R_BORDER&&y>=T_BORDER&&y<=B_BORDER; // check if position is within intersection bounds
 }
 
 int atStopLine(Car *c) { 
-    if(!c->active) return 0;
+    if(!c->active) return 0; // inactive car not at stop line
     if(c->dir==NORTH) return c->y==B_BORDER+1; // checks if the car is at the stop line based on the direction it was moving initially 
     if(c->dir==SOUTH) return c->y==T_BORDER-1; 
     if(c->dir==EAST) return c->x==L_BORDER-1;
     if(c->dir==WEST) return c->x==R_BORDER+1;
-    return 0;
+    return 0; // not at stop line
 }
 
 int hasCrossed(Car *c) { // checks whether the car has already crossed the intersection so that it can stop checking for the light signals 
@@ -201,7 +201,7 @@ int hasCrossed(Car *c) { // checks whether the car has already crossed the inter
     if(c->dir==SOUTH) return c->y>B_BORDER;
     if(c->dir==EAST) return c->x>R_BORDER;
     if(c->dir==WEST) return c->x<L_BORDER;
-    return 0;
+    return 0; // not crossed
 }
 
 int canMove(Car *c) {
@@ -211,7 +211,7 @@ int canMove(Car *c) {
         return nsLight.state!=RED_L; // can move if not red 
         return ewLight.state!=RED_L;
     }
-    return 1;
+    return 1; // can move
 }
 
 int isOccupied(int x,int y,int skip) { // checks if the position is already occupied or not except for itslef 
@@ -226,17 +226,17 @@ int isOccupied(int x,int y,int skip) { // checks if the position is already occu
 int pedAt(int x,int y) { // takes the coordinates of the cars next movement as the input 
     for(int i=0;i<MAX_PEDS;i++) // checks whether the position is already occupied by the pedestrian or not 
         if(peds[i].active&&peds[i].x==x&&peds[i].y==y) return 1; // if true then the car cannot move further 
-    return 0;
+    return 0; // no pedestrian at position
 }
 
 int carAt(int x,int y) {
     for(int i=0;i<MAX_CARS;i++)
-        if(cars[i].active&&cars[i].x==x&&cars[i].y==y) return 1;
-    return 0;
+        if(cars[i].active&&cars[i].x==x&&cars[i].y==y) return 1; // check if car at position
+    return 0; // no car at position
 }
 
 void drawCar(Car *c,int erase) {  // erase can be either 0 or 1 
-    if(c->y<0||c->y>=H||c->x<0||c->x>=W) return;
+    if(c->y<0||c->y>=H||c->x<0||c->x>=W) return; // check bounds
     POS(c->y+1,c->x+1); // moves the cursor 
     if(erase) putchar(grid[c->y][c->x]); // clear the background  
     else { // 
@@ -248,9 +248,9 @@ void drawCar(Car *c,int erase) {  // erase can be either 0 or 1
 }
 
 void drawPed(Ped *p,int erase) {
-    if(p->y<0||p->y>=H||p->x<0||p->x>=W) return;
-    POS(p->y+1,p->x+1);
-    erase?putchar(grid[p->y][p->x]):printf(CYN"%c"RST,p->sym);
+    if(p->y<0||p->y>=H||p->x<0||p->x>=W) return; // check bounds
+    POS(p->y+1,p->x+1); // position cursor
+    erase?putchar(grid[p->y][p->x]):printf(CYN"%c"RST,p->sym); // erase or draw pedestrian
 }
 
 void spawnCar() {  // spawns a car at random direction 
@@ -274,69 +274,69 @@ void spawnCar() {  // spawns a car at random direction
 }
 
 void spawnPed() {
-    int s=-1;
+    int s=-1; // not found marker
     for(int i=0;i<MAX_PEDS;i++)
-        if(!peds[i].active) {s=i;break;}
-    if(s<0) return;
+        if(!peds[i].active) {s=i;break;} // find inactive pedestrian slot
+    if(s<0) return; // no slot available
     
-    Ped *p=&peds[s];
-    p->active=1;
-    p->dir=rand()%4;
-    p->sym='P';
+    Ped *p=&peds[s]; // pointer to pedestrian slot
+    p->active=1; // activate pedestrian
+    p->dir=rand()%4; // random direction
+    p->sym='P'; // symbol
     
     switch(p->dir) {
         case EAST:
-            p->x=L_BORDER;
-            p->y=T_BORDER-2;
+            p->x=L_BORDER; // spawn at left border
+            p->y=T_BORDER-2; // above intersection
             break;
         case WEST:
-            p->x=R_BORDER;
-            p->y=T_BORDER-2;
+            p->x=R_BORDER; // spawn at right border
+            p->y=T_BORDER-2; // above intersection
             break;
         case SOUTH:
-            p->x=L_BORDER-2;
-            p->y=T_BORDER;
+            p->x=L_BORDER-2; // left of intersection
+            p->y=T_BORDER; // at top border
             break;
         case NORTH:
-            p->x=L_BORDER-2;
-            p->y=B_BORDER;
+            p->x=L_BORDER-2; // left of intersection
+            p->y=B_BORDER; // at bottom border
             break;
     }
 }
 
 void updatePeds(int tick) {
-    for(int i=0;i<MAX_PEDS;i++) {
-        Ped *p=&peds[i];
-        if(!p->active) continue;
+    for(int i=0;i<MAX_PEDS;i++) { // loop through all pedestrians
+        Ped *p=&peds[i]; // pointer to pedestrian
+        if(!p->active) continue; // skip inactive
         
-        int can=0;
+        int move=0; // can move flag
         
-        if((p->dir==NORTH||p->dir==SOUTH)&&ew_ped==WALK) can=1;
-        else if((p->dir==EAST||p->dir==WEST)&&ns_ped==WALK) can=1;
+        if((p->dir==NORTH||p->dir==SOUTH)&&ew_ped==WALK) move=1; // can move if east-west pedestrian signal is walk
+        else if((p->dir==EAST||p->dir==WEST)&&ns_ped==WALK) move=1; // can move if north-south pedestrian signal is walk
         
-        if(can&&tick%PED_INTERVAL==0) {
-            int nx=p->x,ny=p->y;
-            if(p->dir==NORTH) ny--;
-            else if(p->dir==SOUTH) ny++;
-            else if(p->dir==EAST) nx++;
-            else nx--;
+        if(move&&tick%PED_INTERVAL==0) { // move if allowed and interval reached
+            int nx=p->x,ny=p->y; // next position
+            if(p->dir==NORTH) ny--; // move north
+            else if(p->dir==SOUTH) ny++; // move south
+            else if(p->dir==EAST) nx++; // move east
+            else nx--; // move west
             
-            if(carAt(nx,ny)) {
-                drawPed(p,0);
-                continue;
+            if(carAt(nx,ny)) { // check if car at next position
+                drawPed(p,0); // redraw pedestrian
+                continue; // don't move
             }
             
-            drawPed(p,1);
-            p->x=nx;
-            p->y=ny;
+            drawPed(p,1); // erase old position
+            p->x=nx; // update x
+            p->y=ny; // update y
             
-            if(p->dir==EAST&&p->x>R_BORDER) p->active=0;
-            else if(p->dir==WEST&&p->x<L_BORDER) p->active=0;
-            else if(p->dir==SOUTH&&p->y>B_BORDER) p->active=0;
-            else if(p->dir==NORTH&&p->y<T_BORDER) p->active=0;
-            else if(p->x<0||p->x>=W||p->y<0||p->y>=H) p->active=0;
-            else drawPed(p,0);
-        } else if(p->active) drawPed(p,0);
+            if(p->dir==EAST&&p->x>R_BORDER) p->active=0; // deactivate if crossed right border
+            else if(p->dir==WEST&&p->x<L_BORDER) p->active=0; // deactivate if crossed left border
+            else if(p->dir==SOUTH&&p->y>B_BORDER) p->active=0; // deactivate if crossed bottom border
+            else if(p->dir==NORTH&&p->y<T_BORDER) p->active=0; // deactivate if crossed top border
+            else if(p->x<0||p->x>=W||p->y<0||p->y>=H) p->active=0; // deactivate if out of bounds
+            else drawPed(p,0); // draw at new position
+        } else if(p->active) drawPed(p,0); // redraw if active but not moving
     }
 }
 
@@ -357,42 +357,42 @@ void updateCars(int tick) {
         if(nx<0||nx>=W||ny<0||ny>=H) {  // maintains the boundary conditions for the grid 
             drawCar(c,1); 
             c->active=0; // if the car moves out of the grid then deactivate it and remove it from the grid 
-            continue; //
+            continue; 
         }
         
         if(!canMove(c)||isOccupied(nx,ny,i)||pedAt(nx,ny)) { // checks for the following : traffic light, pedestrian, already occupied 
             if(lane_change&&countCars(c->dir)>5) { // when either option 3 is choosen or option 1 choosen and the car in that direction are more than 5 
                 int sw=0; // flag variable for the switching 
                 if(c->dir==NORTH||c->dir==SOUTH) { // vertical movement 
-                    int dy = (c->dir == NORTH) ? -1 : 1; 
-                    if(c->x>0 && c->x-1 >= L_BORDER && c->y + dy >= 0 && c->y + dy < H && !isOccupied(c->x-1,c->y,i)) {
-                        drawCar(c,1);c->x--;drawCar(c,0);sw=1;
-                        snprintf(lc_msg,100,"Car %d (%s) lane LEFT",i,dir_names[c->dir]);lc_ticks=20;
-                    } else if(c->x<W-1 && c->x+1 <= R_BORDER && c->y + dy >= 0 && c->y + dy < H && !isOccupied(c->x+1,c->y,i)) {
-                        drawCar(c,1);c->x++;drawCar(c,0);sw=1;
-                        snprintf(lc_msg,100,"Car %d (%s) lane RIGHT",i,dir_names[c->dir]);lc_ticks=20;
+                    int dy = (c->dir == NORTH) ? -1 : 1; // direction increase for y
+                    if(c->x>0 && c->x-1 >= L_BORDER && c->y + dy >= 0 && c->y + dy < H && !isOccupied(c->x-1,c->y,i)) { // check left lane change
+                        drawCar(c,1);c->x--;drawCar(c,0);sw=1; // move left
+                        snprintf(lc_msg,100,"Car %d (%s) lane LEFT",i,dir_names[c->dir]);lc_ticks=20; // log message
+                    } else if(c->x<W-1 && c->x+1 <= R_BORDER && c->y + dy >= 0 && c->y + dy < H && !isOccupied(c->x+1,c->y,i)) { // check right lane change
+                        drawCar(c,1);c->x++;drawCar(c,0);sw=1; // move right
+                        snprintf(lc_msg,100,"Car %d (%s) lane RIGHT",i,dir_names[c->dir]);lc_ticks=20; // log message
                     }
-                } else {
-                    int dx = (c->dir == EAST) ? 1 : -1;
-                    if(c->y>0 && c->y-1 >= T_BORDER && c->x + dx >= 0 && c->x + dx < W && !isOccupied(c->x,c->y-1,i)) {
-                        drawCar(c,1);c->y--;drawCar(c,0);sw=1;
-                        snprintf(lc_msg,100,"Car %d (%s) lane LEFT",i,dir_names[c->dir]);lc_ticks=20;
-                    } else if(c->y<H-1 && c->y+1 <= B_BORDER && c->x + dx >= 0 && c->x + dx < W && !isOccupied(c->x,c->y+1,i)) {
-                        drawCar(c,1);c->y++;drawCar(c,0);sw=1;
-                        snprintf(lc_msg,100,"Car %d (%s) lane RIGHT",i,dir_names[c->dir]);lc_ticks=20;
+                } else { // horizontal movement
+                    int dx = (c->dir == EAST) ? 1 : -1; // direction increment for x
+                    if(c->y>0 && c->y-1 >= T_BORDER && c->x + dx >= 0 && c->x + dx < W && !isOccupied(c->x,c->y-1,i)) { // check up lane change
+                        drawCar(c,1);c->y--;drawCar(c,0);sw=1; // move up
+                        snprintf(lc_msg,100,"Car %d (%s) lane LEFT",i,dir_names[c->dir]);lc_ticks=20; // log message
+                    } else if(c->y<H-1 && c->y+1 <= B_BORDER && c->x + dx >= 0 && c->x + dx < W && !isOccupied(c->x,c->y+1,i)) { // check down lane change
+                        drawCar(c,1);c->y++;drawCar(c,0);sw=1; // move down
+                        snprintf(lc_msg,100,"Car %d (%s) lane RIGHT",i,dir_names[c->dir]);lc_ticks=20; // log message
                     }
                 }
-                if(sw) continue;
+                if(sw) continue; // skip forward move if lane changed
             }
-            drawCar(c,0);
-            continue;
+            drawCar(c,0); // redraw car if not moving
+            continue; // skip to next car
         }
         
-        drawCar(c,1);
-        c->x=nx;
-        c->y=ny;
-        if(!c->crossed) c->crossed=hasCrossed(c);
-        drawCar(c,0);
+        drawCar(c,1); // erase old position
+        c->x=nx; // update x
+        c->y=ny; // update y
+        if(!c->crossed) c->crossed=hasCrossed(c); // check if crossed
+        drawCar(c,0); // draw at new position
     }
 }
 
@@ -495,4 +495,4 @@ int main() {
             SLEEP(1500);
         }
     }
-}//test character address
+}
