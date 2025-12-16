@@ -2,7 +2,7 @@
 #include <stdlib.h> // for funtions like srand in the function 
 #include <time.h> // get the current system time 
 #include <windows.h> // for the delays in milliseconds 
-#include <conio.h>
+#include <conio.h> 
 
 #define SLEEP(ms) Sleep(ms)
 #define KBHIT() _kbhit()
@@ -274,7 +274,7 @@ void spawnCar() {  // spawns a car at random direction
 }
 
 void spawnPed() {
-    int s=-1; // not found marker
+    int s=-1; // not found marker searches all the slots for the pedestrians 
     for(int i=0;i<MAX_PEDS;i++)
         if(!peds[i].active) {s=i;break;} // find inactive pedestrian slot
     if(s<0) return; // no slot available
@@ -282,23 +282,23 @@ void spawnPed() {
     Ped *p=&peds[s]; // pointer to pedestrian slot
     p->active=1; // activate pedestrian
     p->dir=rand()%4; // random direction
-    p->sym='P'; // symbol
+    p->sym='P'; // always P only 
     
     switch(p->dir) {
         case EAST:
-            p->x=L_BORDER; // spawn at left border
+            p->x=L_BORDER; // spawn at left border at (37,8)
             p->y=T_BORDER-2; // above intersection
             break;
         case WEST:
-            p->x=R_BORDER; // spawn at right border
+            p->x=R_BORDER; // spawn at right border at(42,8)
             p->y=T_BORDER-2; // above intersection
             break;
         case SOUTH:
-            p->x=L_BORDER-2; // left of intersection
+            p->x=L_BORDER-2; // left of intersection at (35,10)
             p->y=T_BORDER; // at top border
             break;
         case NORTH:
-            p->x=L_BORDER-2; // left of intersection
+            p->x=L_BORDER-2; // left of intersection ta (35,13))
             p->y=B_BORDER; // at bottom border
             break;
     }
@@ -306,7 +306,7 @@ void spawnPed() {
 
 void updatePeds(int tick) {
     for(int i=0;i<MAX_PEDS;i++) { // loop through all pedestrians
-        Ped *p=&peds[i]; // pointer to pedestrian
+        Ped *p=&peds[i]; // ptr to pedestrian
         if(!p->active) continue; // skip inactive
         
         int move=0; // can move flag
@@ -322,7 +322,7 @@ void updatePeds(int tick) {
             else nx--; // move west
             
             if(carAt(nx,ny)) { // check if car at next position
-                drawPed(p,0); // redraw pedestrian
+                drawPed(p,0); // stops the pedestrian until the car is out of the way 
                 continue; // don't move
             }
             
@@ -367,19 +367,19 @@ void updateCars(int tick) {
                     int dy = (c->dir == NORTH) ? -1 : 1; // direction increase for y
                     if(c->x>0 && c->x-1 >= L_BORDER && c->y + dy >= 0 && c->y + dy < H && !isOccupied(c->x-1,c->y,i)) { // check left lane change
                         drawCar(c,1);c->x--;drawCar(c,0);sw=1; // move left
-                        snprintf(lc_msg,100,"Car %d (%s) lane LEFT",i,dir_names[c->dir]);lc_ticks=20; // log message
+                        snprintf(lc_msg,100,"Car %d (%s) bound has moved a lane LEFT",i,dir_names[c->dir]);lc_ticks=20; // log message and shows it shows it for 2 section 
                     } else if(c->x<W-1 && c->x+1 <= R_BORDER && c->y + dy >= 0 && c->y + dy < H && !isOccupied(c->x+1,c->y,i)) { // check right lane change
                         drawCar(c,1);c->x++;drawCar(c,0);sw=1; // move right
-                        snprintf(lc_msg,100,"Car %d (%s) lane RIGHT",i,dir_names[c->dir]);lc_ticks=20; // log message
+                        snprintf(lc_msg,100,"Car %d (%s) bound has moved a lane RIGHT",i,dir_names[c->dir]);lc_ticks=20; // log message
                     }
-                } else { // horizontal movement
+                } else { // e-w lane change logic 
                     int dx = (c->dir == EAST) ? 1 : -1; // direction increment for x
                     if(c->y>0 && c->y-1 >= T_BORDER && c->x + dx >= 0 && c->x + dx < W && !isOccupied(c->x,c->y-1,i)) { // check up lane change
                         drawCar(c,1);c->y--;drawCar(c,0);sw=1; // move up
-                        snprintf(lc_msg,100,"Car %d (%s) lane LEFT",i,dir_names[c->dir]);lc_ticks=20; // log message
+                        snprintf(lc_msg,100,"Car %d (%s) bound has moved a lane UP",i,dir_names[c->dir]);lc_ticks=20; // log message
                     } else if(c->y<H-1 && c->y+1 <= B_BORDER && c->x + dx >= 0 && c->x + dx < W && !isOccupied(c->x,c->y+1,i)) { // check down lane change
                         drawCar(c,1);c->y++;drawCar(c,0);sw=1; // move down
-                        snprintf(lc_msg,100,"Car %d (%s) lane RIGHT",i,dir_names[c->dir]);lc_ticks=20; // log message
+                        snprintf(lc_msg,100,"Car %d (%s) bound has moved a lane DOWN",i,dir_names[c->dir]);lc_ticks=20; // log message
                     }
                 }
                 if(sw) continue; // skip forward move if lane changed
@@ -410,20 +410,20 @@ void menu() {
 }
 
 void run(int dur) {
-    printf(CLEAR);
-    initGrid();
-    initLights();
-    initCars();
-    initPeds();
-    drawGrid();
-    int f=dur*10,t=0,paused=0;
-    while(f>0) {
-        if(KBHIT()) {           // checks for user input 
-            char c=GETCH();
-            if(c=='p'||c=='P') {
+    printf(CLEAR);  // clears the scrn
+    initGrid(); // builds the road layouts 
+    initLights(); // setup the traffic lights 
+    initCars(); // reset car slots 
+    initPeds(); // reset pedestrian slots 
+    drawGrid(); // display the roads 
+    int f=dur*10,t=0,paused=0; // total frames(divide by 10 for 10fps),time counter, paused or not 
+    while(f>0) { // if 60 seconds then the 
+        if(KBHIT()) {           // checks if key pressed or not 
+            char c=GETCH(); // gets the key pressed
+            if(c=='p'||c=='P') { // is it p or P
                 paused=!paused;
-                POS(H+7,1);
-                if(paused) printf(YEL"[PAUSED - Press 'p' to resume]                    "RST);
+                POS(H+7,1); // moves the cursor 
+                if(paused) printf(YEL"[PAUSED - Press 'p' to resume]                    "RST); // shows the message in yellow 
                 else printf("                                                   ");
                 fflush(stdout);
             }
@@ -440,11 +440,12 @@ void run(int dur) {
             updateCars(t); // move the cars on the grid 
             updatePeds(t); // show the pedestrians on the grid  
         }
-        fflush(stdout);
-        SLEEP(100);
+        fflush(stdout); // forces the screen to update immediately without any delay 
+        SLEEP(100); // pauses for 0.1 seconds for controlling frames per second 
     }
-    printf(CLEAR GRN"Simulation completed!\n"RST"Press Enter...");
-    getchar();getchar();
+    printf(CLEAR GRN"Simulation completed!\n"RST"Press Enter...   :-)");
+    getchar(); // clears the input buffer 
+    getchar(); // second waits for the user 
 }
 
 int main() {
